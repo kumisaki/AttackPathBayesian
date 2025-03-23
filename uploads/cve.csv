@@ -1,0 +1,4 @@
+ip_address,cve_id,description,cvss_score,severity,epss
+10.1.3.8,CVE-2019-14287,"sudo 提权漏洞: 用户可绕过安全策略",7.8,HIGH,0.15
+10.1.3.17,CVE-2020-0796,"SMBGhost 漏洞: Windows 10 RCE",10.0,CRITICAL,0.70
+10.1.5.21,CVE-2021-3156,"sudo Baron Samedit 漏洞",7.0,HIGH,0.25

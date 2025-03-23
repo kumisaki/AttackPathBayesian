@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>攻击路径: 子网 -> 设备(矩形) -> 漏洞(圆形)</h2>
+<div id="cy" style="width: 100%; height: 700px; border: 1px solid #aaa;"></div>
+
+<!-- Bootstrap Modal for showing node details -->
+<div class="modal fade" id="nodeDetailModal" tabindex="-1" role="dialog" aria-labelledby="nodeDetailModalTitle" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="nodeDetailModalTitle">节点信息</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p><strong>ID:</strong> <span id="modalNodeId"></span></p>
+        <p><strong>Label:</strong> <span id="modalNodeLabel"></span></p>
+        <div id="extraDeviceFields" style="display: none;">
+          <p><strong>IP:</strong> <span id="modalDeviceIp"></span></p>
+          <p><strong>OS:</strong> <span id="modalDeviceOs"></span></p>
+        </div>
+        <div id="extraVulnFields" style="display: none;">
+          <p><strong>Vulnerability ID:</strong> <span id="modalVulnId"></span></p>
+          <p><strong>Exploit Probability:</strong> <span id="modalVulnProb"></span></p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">关闭</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 引入 Cytoscape, dagre 及插件 -->
+<script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
+<script src="https://unpkg.com/dagre/dist/dagre.min.js"></script>
+<script src="https://unpkg.com/cytoscape-dagre/cytoscape-dagre.js"></script>
+
+<script>
+// 1) 注册 dagre 插件
+cytoscape.use(cytoscapeDagre);
+
+// 2) 从后端获取 elements 数组 (Jinja2 tojson)
+let cyElements = {{ elements|tojson }};
+
+// 3) 初始化 Cytoscape
+var cy = cytoscape({
+  container: document.getElementById('cy'),
+  elements: cyElements,
+  layout: {
+    name: 'dagre', // 这里即可用dagre布局
+    padding: 20
+  },
+  style: [
+    {
+      selector: 'node',
+      style: {
+        'label': 'data(label)',
+        'text-wrap': 'wrap',
+        'text-max-width': '100px',
+        'text-valign': 'center',
+        'text-halign': 'center',
+        'font-size': 12,
+        'color': '#fff',
+        'text-outline-color': '#555',
+        'text-outline-width': 2
+      }
+    },
+    // 子网(最外层)
+    {
+      selector: 'node.subnet',
+      style: {
+        'background-color': '#888',
+        'shape': 'roundrectangle',
+        'padding': '20px', // 让compound更大些
+        'compound-sizing-wrt-labels': 'exclude',
+      }
+    },
+    // 设备(子节点, 矩形)
+    {
+      selector: 'node.device',
+      style: {
+        'background-color': '#337ab7',
+        'shape': 'roundrectangle',
+        'width': '120px',
+        'height': '60px'
+      }
+    },
+    // 漏洞(子节点,圆形)
+    {
+      selector: 'node.vuln',
+      style: {
+        'background-color': function(ele){
+          let p = ele.data('prob') || 0.0;
+          // 0=绿色,1=红色
+          let r = Math.round(255 * p);
+          let g = Math.round(255 * (1 - p));
+          return 'rgb('+r+','+g+',0)';
+        },
+        'shape': 'ellipse',
+        'width': '40px',
+        'height': '40px'
+      }
+    },
+    // 边
+    {
+      selector: 'edge',
+      style: {
+        'width': 2,
+        'line-color': '#bbb',
+        'target-arrow-shape': 'triangle',
+        'target-arrow-color': '#bbb',
+        'curve-style': 'bezier'
+      }
+    }
+  ]
+});
+
+// 4) 监听点击事件, 用 Modal 显示信息
+cy.on('tap', 'node', function(evt){
+  let node = evt.target;
+
+  // 不要用 node.classes().has()，而要用 node.hasClass('device')
+  if(node.hasClass('device')){
+    // 设备节点
+    document.getElementById('extraDeviceFields').style.display = 'block';
+    document.getElementById('extraVulnFields').style.display = 'none';
+
+    document.getElementById('modalNodeId').textContent = node.id();
+    document.getElementById('modalNodeLabel').textContent = node.data('label') || '';
+    document.getElementById('modalDeviceIp').textContent = node.data('ip') || '';
+    document.getElementById('modalDeviceOs').textContent = node.data('os') || '';
+  }
+  else if(node.hasClass('vuln')){
+    // 漏洞节点
+    document.getElementById('extraDeviceFields').style.display = 'none';
+    document.getElementById('extraVulnFields').style.display = 'block';
+
+    document.getElementById('modalNodeId').textContent = node.id();
+    document.getElementById('modalNodeLabel').textContent = node.data('label') || '';
+    document.getElementById('modalVulnId').textContent = node.data('vuln_id') || '';
+    let p = node.data('prob') || 0.0;
+    document.getElementById('modalVulnProb').textContent = p.toFixed(2);
+  }
+  else if(node.hasClass('subnet')){
+    // 子网节点
+    document.getElementById('extraDeviceFields').style.display = 'none';
+    document.getElementById('extraVulnFields').style.display = 'none';
+
+    document.getElementById('modalNodeId').textContent = node.id();
+    document.getElementById('modalNodeLabel').textContent = node.data('label') || '';
+  }
+  else {
+    // fallback
+    document.getElementById('extraDeviceFields').style.display = 'none';
+    document.getElementById('extraVulnFields').style.display = 'none';
+
+    document.getElementById('modalNodeId').textContent = node.id();
+    document.getElementById('modalNodeLabel').textContent = node.data('label') || '';
+  }
+
+  // 显示 Modal (Bootstrap 4)
+  $('#nodeDetailModal').modal('show');
+});
+</script>
+{% endblock %}

@@ -1,0 +1,13 @@
+device_name,ip_address,device_type,location,notes
+Honeypot Server,10.1.4.9,Kali 2020.1,"Public Subnet (10.1.4.0/24)","Honeypot吸引并分析攻击"
+Web Server,10.1.4.10,Ubuntu 18.04,"Public Subnet (10.1.4.0/24)","对外提供Web服务"
+SFTP Server,10.1.5.7,Ubuntu 18.04,"Private Subnet (10.1.5.0/24)","对外/对内的文件传输"
+Log Server,10.1.5.8,Ubuntu 18.04,"Private Subnet (10.1.5.0/24)","集中收集与分析日志"
+Intranet App Server,10.1.5.11,Windows 10,"Private Subnet (10.1.5.0/24)","企业内部业务应用"
+Database Server,10.1.5.20,Ubuntu 18.04,"Private Subnet (10.1.5.0/24)","存储内部敏感数据"
+IT-Kali1,10.1.3.11,Kali 2020.1,"IT Subnet (10.1.3.0/24)","IT部门渗透/测试环境"
+IT-Win10,10.1.3.17,Windows 10,"IT Subnet (10.1.3.0/24)","IT人员工作站"
+HR-Ubuntu,10.1.1.12,Ubuntu 18.04,"HR & Exec (10.1.1.0/24)","HR/行政员工使用"
+HR-Win10,10.1.1.15,Windows 10,"HR & Exec (10.1.1.0/24)","HR/行政部门工作站"
+MKT-Kali,10.1.2.10,Kali 2020.1,"Marketing (10.1.2.0/24)","营销部门特殊用途机"
+MKT-Win10,10.1.2.8,Windows 10,"Marketing (10.1.2.0/24)","营销员工日常办公"

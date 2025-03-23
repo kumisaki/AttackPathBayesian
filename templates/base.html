@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Attack Bayesian</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+</head>
+
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <a class="navbar-brand" href="{{ url_for('index') }}">Attack Bayesian</a>
+
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
+            aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav mr-auto">
+                <!-- network topology management -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="topoDropdown" role="button" data-toggle="dropdown"
+                        aria-haspopup="true" aria-expanded="false">Network Topology</a>
+                    <div class="dropdown-menu" aria-labelledby="topoDropdown">
+                        <a class="dropdown-item" href="{{ url_for('topo_bp.topology_list') }}">Topology List</a>
+                        <a class="dropdown-item" href="{{ url_for('topo_bp.topology_add_page') }}">Add/Upload</a>
+                    </div>
+                </li>
+
+                <!-- vulnerability management -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="vulnDropdown" role="button" data-toggle="dropdown"
+                        aria-haspopup="true" aria-expanded="false">Device Vulnerability</a>
+                    <div class="dropdown-menu" aria-labelledby="vulnDropdown">
+                        <a class="dropdown-item" href="{{ url_for('vuln_bp.vuln_list') }}">Vulnerability List</a>
+                        <a class="dropdown-item" href="{{ url_for('vuln_bp.vuln_add_page') }}">Add/Upload</a>
+                    </div>
+                </li>
+                <!-- analysis  -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="analysisDropdown" data-toggle="dropdown"
+                        aria-haspopup="true" aria-expanded="false">
+                        Analysis
+                    </a>
+                    <div class="dropdown-menu" aria-labelledby="analysisDropdown">
+                        <!-- Cytoscape -->
+                        <a class="dropdown-item" href="{{ url_for('analysis_bp.complex_attack_path') }}">
+                            Attack Path
+                        </a>
+                    </div>
+                </li>
+
+
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Flash messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+            </button>
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Bootstrap JS & dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.slim.min.js">
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js">
+    </script>
+</body>
+
+</html>

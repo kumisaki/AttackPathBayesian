@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>添加 / 上传 网络拓扑</h2>
+
+<!-- 导航Tabs (可选) -->
+<ul class="nav nav-tabs" id="myTab" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" id="manual-tab" data-toggle="tab" href="#manual" 
+       role="tab" aria-controls="manual" aria-selected="true">
+       手动添加
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="upload-tab" data-toggle="tab" href="#upload" 
+       role="tab" aria-controls="upload" aria-selected="false">
+       上传CSV
+    </a>
+  </li>
+</ul>
+
+<div class="tab-content mt-3" id="myTabContent">
+  <!-- 1) 手动添加 -->
+  <div class="tab-pane fade show active" id="manual" role="tabpanel" 
+       aria-labelledby="manual-tab">
+    <form method="POST" action="{{ url_for('topo_bp.topology_add_manual') }}">
+      <div class="form-group">
+        <label for="device_name">设备名称</label>
+        <input type="text" class="form-control" name="device_name" required>
+      </div>
+      <div class="form-group">
+        <label for="ip_address">IP地址</label>
+        <input type="text" class="form-control" name="ip_address" required>
+      </div>
+      <div class="form-group">
+        <label for="device_type">类型</label>
+        <input type="text" class="form-control" name="device_type">
+      </div>
+      <div class="form-group">
+        <label for="location">位置/子网</label>
+        <input type="text" class="form-control" name="location">
+      </div>
+      <div class="form-group">
+        <label for="notes">备注</label>
+        <textarea class="form-control" name="notes"></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary">提交</button>
+    </form>
+  </div>
+
+  <!-- 2) CSV上传 -->
+  <div class="tab-pane fade" id="upload" role="tabpanel" aria-labelledby="upload-tab">
+    <form method="POST" action="{{ url_for('topo_bp.topology_add_upload') }}" 
+          enctype="multipart/form-data">
+      <div class="form-group">
+        <label for="file">选择 CSV 文件</label>
+        <input type="file" class="form-control-file" name="file" accept=".csv" required>
+      </div>
+      <button type="submit" class="btn btn-secondary">上传并导入</button>
+    </form>
+
+    <hr>
+    <p class="text-muted">CSV 示例(首行为列名):</p>
+    <pre>
+device_name,ip_address,device_type,location,notes
+WebServer,10.1.4.10,Ubuntu 18.04,DMZ,"Public-facing web server"
+DBServer,10.1.5.7,MySQL Database,Internal,"Stores user data"
+    </pre>
+  </div>
+</div>
+{% endblock %}
