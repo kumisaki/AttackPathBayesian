@@ -11,7 +11,7 @@ topo_bp = Blueprint("topo_bp", __name__)
 
 @topo_bp.route('/')
 def topology_list():
-    """查看全部网络拓扑节点."""
+    """list all network topology node."""
     # 访问Mongo：mongo.db.network_topology
     topology_collection = mongo.db.network_topology
     all_nodes = list(topology_collection.find())
@@ -20,14 +20,13 @@ def topology_list():
 @topo_bp.route('/add', methods=['GET'])
 def topology_add_page():
     """
-    同一页面: 手动添加 or CSV上传.
     templates/topology_add_or_upload.html
     """
     return render_template('topology_add_or_upload.html')
 
 @topo_bp.route('/add/manual', methods=['POST'])
 def topology_add_manual():
-    """手动添加拓扑节点."""
+    """manually add topology node."""
     topology_collection = mongo.db.network_topology
 
     device_name = request.form.get('device_name', '')
@@ -44,21 +43,21 @@ def topology_add_manual():
         "notes": notes
     }
     topology_collection.insert_one(new_node)
-    flash("拓扑节点已添加", "success")
+    flash("topology node is added", "success")
     return redirect(url_for('topo_bp.topology_list'))
 
 @topo_bp.route('/add/upload', methods=['POST'])
 def topology_add_upload():
-    """CSV上传, 批量添加/更新拓扑节点."""
+    """CSV upload, batch update or add topology node."""
     topology_collection = mongo.db.network_topology
 
     if 'file' not in request.files:
-        flash("没有检测到 'file' 字段", "danger")
+        flash("field 'file' is not detected ", "danger")
         return redirect(url_for('topo_bp.topology_add_page'))
 
     file = request.files['file']
     if file.filename == '':
-        flash("请选择要上传的 CSV 文件", "warning")
+        flash("please select CSV file", "warning")
         return redirect(url_for('topo_bp.topology_add_page'))
 
     if allowed_file(file.filename):
@@ -67,10 +66,10 @@ def topology_add_upload():
         file.save(save_path)
 
         count = update_topology_from_csv(save_path, topology_collection)
-        flash(f"已批量导入 {count} 条拓扑节点", "success")
+        flash(f" {count} topology nodes are imported", "success")
         return redirect(url_for('topo_bp.topology_list'))
     else:
-        flash("仅支持 CSV 文件", "danger")
+        flash("only CSV file is supported", "danger")
         return redirect(url_for('topo_bp.topology_add_page'))
 
 @topo_bp.route('/edit/<node_id>', methods=['GET', 'POST'])
@@ -78,7 +77,7 @@ def topology_edit(node_id):
     topology_collection = mongo.db.network_topology
     node = topology_collection.find_one({"_id": ObjectId(node_id)})
     if not node:
-        flash("未找到该拓扑节点", "danger")
+        flash("this node is not found", "danger")
         return redirect(url_for('topo_bp.topology_list'))
 
     if request.method == 'POST':
@@ -99,7 +98,7 @@ def topology_edit(node_id):
             {"_id": node["_id"]},
             {"$set": update_fields}
         )
-        flash("拓扑节点已更新", "success")
+        flash("topology node is updated", "success")
         return redirect(url_for('topo_bp.topology_list'))
 
     # GET 请求
@@ -109,11 +108,11 @@ def topology_edit(node_id):
 def topology_delete(node_id):
     topology_collection = mongo.db.network_topology
     topology_collection.delete_one({"_id": ObjectId(node_id)})
-    flash("拓扑节点已删除", "info")
+    flash("topology node is deleted", "info")
     return redirect(url_for('topo_bp.topology_list'))
 
 def update_topology_from_csv(csv_file_path, collection):
-    """批量导入或更新网络拓扑节点."""
+    """import topology node using file."""
     count = 0
     with open(csv_file_path, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f)

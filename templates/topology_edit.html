@@ -1,31 +1,31 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>编辑网络拓扑节点</h2>
+<h2>Edit Network Topology Node</h2>
 <form method="POST" action="{{ url_for('topo_bp.topology_edit', node_id=node._id) }}">
   <div class="form-group">
-    <label for="device_name">设备名称</label>
+    <label for="device_name">Device name</label>
     <input type="text" class="form-control" name="device_name" 
            value="{{ node.device_name }}" required>
   </div>
   <div class="form-group">
-    <label for="ip_address">IP地址</label>
+    <label for="ip_address">IP</label>
     <input type="text" class="form-control" name="ip_address" 
            value="{{ node.ip_address }}" required>
   </div>
   <div class="form-group">
-    <label for="device_type">类型</label>
+    <label for="device_type">Type</label>
     <input type="text" class="form-control" name="device_type" 
            value="{{ node.device_type }}">
   </div>
   <div class="form-group">
-    <label for="location">位置/子网</label>
+    <label for="location">Position/Subnet</label>
     <input type="text" class="form-control" name="location" 
            value="{{ node.location }}">
   </div>
   <div class="form-group">
-    <label for="notes">备注</label>
+    <label for="notes">Note</label>
     <textarea class="form-control" name="notes">{{ node.notes }}</textarea>
   </div>
-  <button type="submit" class="btn btn-primary">更新</button>
+  <button type="submit" class="btn btn-primary">Update</button>
 </form>
 {% endblock %}

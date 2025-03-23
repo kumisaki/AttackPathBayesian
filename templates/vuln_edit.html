@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>编辑漏洞信息</h2>
+<h2>Edit Vulnerability Information</h2>
 <form method="POST" action="{{ url_for('vuln_bp.vuln_edit', vuln_id=vuln._id) }}">
   <div class="form-group">
-    <label>IP地址</label>
+    <label>IP</label>
     <input type="text" class="form-control" name="ip_address" 
            value="{{ vuln.ip_address }}">
   </div>
@@ -13,7 +13,7 @@
            value="{{ vuln.cve_id }}">
   </div>
   <div class="form-group">
-    <label>描述</label>
+    <label>Description</label>
     <textarea class="form-control" name="description">{{ vuln.description }}</textarea>
   </div>
   <div class="form-group">
@@ -27,10 +27,10 @@
            name="epss" value="{{ vuln.epss }}">
   </div>
   <div class="form-group">
-    <label>严重度</label>
+    <label>Serious</label>
     <input type="text" class="form-control" name="severity" 
            value="{{ vuln.severity }}">
   </div>
-  <button type="submit" class="btn btn-primary">更新</button>
+  <button type="submit" class="btn btn-primary">Update</button>
 </form>
 {% endblock %}

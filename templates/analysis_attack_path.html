@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>攻击路径贝叶斯网络 (可交互 + Modal)</h2>
+<h2>Attack Path Bayesian Network</h2>
 <div id="cy" style="width: 100%; height: 600px; border: 1px solid #ccc;"></div>
 
-<!-- 定义一个Bootstrap Modal -->
+<!-- Bootstrap Modal -->
 <div class="modal fade" id="nodeInfoModal" tabindex="-1" role="dialog" aria-labelledby="nodeInfoModalTitle" aria-hidden="true">
   <div class="modal-dialog" role="document">
     <div class="modal-content">
@@ -14,12 +14,12 @@
         </button>
       </div>
       <div class="modal-body">
-        <!-- 放置节点信息的区域 -->
-        <p><strong>IP地址:</strong> <span id="modalIp"></span></p>
-        <p><strong>攻击概率:</strong> <span id="modalProb"></span></p>
+        <!-- node information -->
+        <p><strong>IP:</strong> <span id="modalIp"></span></p>
+        <p><strong>Attack Possibility:</strong> <span id="modalProb"></span></p>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-dismiss="modal">关闭</button>
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">close</button>
       </div>
     </div>
   </div>
@@ -27,7 +27,7 @@
 
 <script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
 <script>
-// 后端传来的 elements
+// elements passed from back end
 let cyElements = {{ elements|tojson }};
 
 var cy = cytoscape({
@@ -43,7 +43,7 @@ var cy = cytoscape({
       style: {
         'background-color': function(ele){
           let p = ele.data('prob') || 0;
-          // 0=>绿, 1=>红
+          // 0=>green, 1=>red
           let r = Math.round(255 * p);
           let g = Math.round(255 * (1 - p));
           return 'rgb('+r+','+g+',0)';
@@ -67,19 +67,19 @@ var cy = cytoscape({
   ]
 });
 
-// 给节点注册点击事件
+// register click event for node
 cy.on('tap', 'node', function(evt){
   let node = evt.target;
   let probVal = node.data('prob') || 0;
   let ip = node.data('ip_address') || node.id();
 
-  // 将信息填到Modal中
+  // fill out information into Modal
   document.getElementById('modalIp').textContent = ip;
   document.getElementById('modalProb').textContent = probVal.toFixed(2);
 
-  // 调用 Bootstrap 的JS API，显示Modal
-  // 注意：Bootstrap 4用 $('#nodeInfoModal').modal('show')
-  //       Bootstrap 5 要用 new bootstrap.Modal(...) 方式
+  // call Bootstrap JS API，show Modal
+  // caution：Bootstrap 4 use $('#nodeInfoModal').modal('show')
+  //       Bootstrap 5 use new bootstrap.Modal(...)
   $('#nodeInfoModal').modal('show');
 });
 </script>

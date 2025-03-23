@@ -1,20 +1,20 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>漏洞列表</h2>
+<h2>Vulnerability List</h2>
 <a href="{{ url_for('vuln_bp.vuln_add_page') }}" class="btn btn-primary mb-3">
-  添加/上传漏洞
+  Add/Upload Vulnerability
 </a>
 <table class="table table-bordered table-hover">
   <thead>
     <tr>
-      <th>IP地址</th>
+      <th>IP</th>
       <th>CVE</th>
-      <th>描述</th>
+      <th>Description</th>
       <th>CVSS</th>
       <th>EPSS</th>
-      <th>严重度</th>
-      <th>攻击概率</th>
-      <th>操作</th>
+      <th>Serious</th>
+      <th>Exploit Probability</th>
+      <th>Operation</th>
     </tr>
   </thead>
   <tbody>
@@ -29,11 +29,11 @@
       <td>{{ v.attack_probability }}</td>
       <td>
         <a href="{{ url_for('vuln_bp.vuln_edit', vuln_id=v._id) }}" 
-           class="btn btn-info btn-sm">编辑</a>
+           class="btn btn-info btn-sm">Edit</a>
         <a href="{{ url_for('vuln_bp.vuln_delete', vuln_id=v._id) }}" 
            class="btn btn-danger btn-sm"
-           onclick="return confirm('确认删除此漏洞?');">
-          删除
+           onclick="return confirm('Confirm to delete this vulnerability?');">
+          Delete
         </a>
       </td>
     </tr>

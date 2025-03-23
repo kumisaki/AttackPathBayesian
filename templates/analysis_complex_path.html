@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>攻击路径: 子网 -> 设备(矩形) -> 漏洞(圆形)</h2>
+<h2>Attack Path: subnet -> device(triangle) -> vulnerability(circle)</h2>
 <div id="cy" style="width: 100%; height: 700px; border: 1px solid #aaa;"></div>
 
 <!-- Bootstrap Modal for showing node details -->
@@ -32,24 +32,24 @@
   </div>
 </div>
 
-<!-- 引入 Cytoscape, dagre 及插件 -->
+<!-- import Cytoscape, dagre and plugin -->
 <script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
 <script src="https://unpkg.com/dagre/dist/dagre.min.js"></script>
 <script src="https://unpkg.com/cytoscape-dagre/cytoscape-dagre.js"></script>
 
 <script>
-// 1) 注册 dagre 插件
+// 1) register dagre plugin
 cytoscape.use(cytoscapeDagre);
 
-// 2) 从后端获取 elements 数组 (Jinja2 tojson)
+// 2) get elements list from back end (Jinja2 tojson)
 let cyElements = {{ elements|tojson }};
 
-// 3) 初始化 Cytoscape
+// 3) initialize Cytoscape
 var cy = cytoscape({
   container: document.getElementById('cy'),
   elements: cyElements,
   layout: {
-    name: 'dagre', // 这里即可用dagre布局
+    name: 'dagre', // dagre layout
     padding: 20
   },
   style: [
@@ -67,17 +67,17 @@ var cy = cytoscape({
         'text-outline-width': 2
       }
     },
-    // 子网(最外层)
+    // subnet(the surface layer)
     {
       selector: 'node.subnet',
       style: {
         'background-color': '#888',
         'shape': 'roundrectangle',
-        'padding': '20px', // 让compound更大些
+        'padding': '20px', // larger compound
         'compound-sizing-wrt-labels': 'exclude',
       }
     },
-    // 设备(子节点, 矩形)
+    // device(sub node, triangle)
     {
       selector: 'node.device',
       style: {
@@ -87,13 +87,13 @@ var cy = cytoscape({
         'height': '60px'
       }
     },
-    // 漏洞(子节点,圆形)
+    // vulnerability(sub node,circle)
     {
       selector: 'node.vuln',
       style: {
         'background-color': function(ele){
           let p = ele.data('prob') || 0.0;
-          // 0=绿色,1=红色
+          // 0=green,1=red
           let r = Math.round(255 * p);
           let g = Math.round(255 * (1 - p));
           return 'rgb('+r+','+g+',0)';
@@ -103,7 +103,7 @@ var cy = cytoscape({
         'height': '40px'
       }
     },
-    // 边
+    // edge
     {
       selector: 'edge',
       style: {
@@ -117,13 +117,13 @@ var cy = cytoscape({
   ]
 });
 
-// 4) 监听点击事件, 用 Modal 显示信息
+// 4) listen click event, use Modal to show information
 cy.on('tap', 'node', function(evt){
   let node = evt.target;
 
-  // 不要用 node.classes().has()，而要用 node.hasClass('device')
+  // replace node.classes().has() with node.hasClass('device')
   if(node.hasClass('device')){
-    // 设备节点
+    // device node
     document.getElementById('extraDeviceFields').style.display = 'block';
     document.getElementById('extraVulnFields').style.display = 'none';
 
@@ -133,7 +133,7 @@ cy.on('tap', 'node', function(evt){
     document.getElementById('modalDeviceOs').textContent = node.data('os') || '';
   }
   else if(node.hasClass('vuln')){
-    // 漏洞节点
+    // vulnerability node
     document.getElementById('extraDeviceFields').style.display = 'none';
     document.getElementById('extraVulnFields').style.display = 'block';
 
@@ -144,7 +144,7 @@ cy.on('tap', 'node', function(evt){
     document.getElementById('modalVulnProb').textContent = p.toFixed(2);
   }
   else if(node.hasClass('subnet')){
-    // 子网节点
+    // subnet node
     document.getElementById('extraDeviceFields').style.display = 'none';
     document.getElementById('extraVulnFields').style.display = 'none';
 
@@ -160,7 +160,7 @@ cy.on('tap', 'node', function(evt){
     document.getElementById('modalNodeLabel').textContent = node.data('label') || '';
   }
 
-  // 显示 Modal (Bootstrap 4)
+  // show Modal (Bootstrap 4)
   $('#nodeDetailModal').modal('show');
 });
 </script>

@@ -8,14 +8,11 @@ analysis_bp = Blueprint("analysis_bp", __name__)
 @analysis_bp.route('/complex_attack_path')
 def complex_attack_path():
     """
-    展示一个包含“子网→设备→漏洞”三层结构的交互式 Cytoscape 图。
-    漏洞为圆形节点、设备为矩形节点、子网可作为更外层compound或普通节点。
+    Showing an interactive Cytoscape graph includes “subnet→device→vulnerability” three layer
+    vulnerability is represented as circle、device is represented as triangle，subnet is surround the device triangle.
     """
 
-    # 1) 从数据库中查询或构造子网/设备/漏洞数据（这里演示手动构造）
-    #   假设有两个子网: Public Subnet, Private Subnet
-    #   每个子网下有若干设备; 每个设备包含若干漏洞(各自概率).
-    #   真实项目中, 你可能实际: subnets = list(mongo.db.subnets.find()), ...
+    # example data
     subnets = [
         {
             "id": "subnet_public",
@@ -71,11 +68,11 @@ def complex_attack_path():
         }
     ]
 
-    # 2) 组装 Cytoscape elements: subnets, devices, vulnerabilities
+    # 2) construct Cytoscape elements: subnets, devices, vulnerabilities
     elements = []
-    #   2.1) Subnet 用 compound parent or 用独立节点
-    #        这里演示：让 "subnet_xxx" 作为 parent, 其 devices 作为 child node.
-    #        也可不做 compound node, 只画 subnet -> device edges.
+    #   2.1) Subnet use compound parent or use individual node
+    #        in this case：let "subnet_xxx" as parent, its devices as child node.
+    #        compound node is not necessary, only draw subnet -> device edges.
 
     for sn in subnets:
         # subnet node
@@ -86,9 +83,9 @@ def complex_attack_path():
             },
             "classes": "subnet"
         })
-        # 处理 connected_subnets => 画个 edge
+        # process connected_subnets => generate edge
         for nbr_id in sn.get("connected_subnets", []):
-            # 只画单向, 或者加判断避免重复
+            # only generate on direction, or add a if to avoid repeat
             edge_id = f"{sn['id']}_to_{nbr_id}"
             elements.append({
                 "data": {
@@ -99,7 +96,7 @@ def complex_attack_path():
                 "classes": "subnet_edge"
             })
 
-        # 2.2) 处理 devices
+        # 2.2) process devices
         for dev in sn["devices"]:
             dev_node_id = dev["id"]
             elements.append({
@@ -112,7 +109,7 @@ def complex_attack_path():
                 },
                 "classes": "device"
             })
-            # 2.3) 处理漏洞 vulnerability
+            # 2.3) process vulnerability
             for vul in dev["vulnerabilities"]:
                 vul_node_id = vul["vuln_id"]
                 p = vul["prob"]
@@ -126,8 +123,8 @@ def complex_attack_path():
                     },
                     "classes": "vuln"
                 })
-                # 也可添加 edge: "vuln -> device compromised" 之类,
-                # 这里演示 device-漏洞 间的有向边 (可选)
+                # edge also can be added: such as "vuln -> device compromised",
+                # here shows directional edge between device-vulnerability (optional)
                 edge_id = f"{vul_node_id}_to_{dev_node_id}"
                 elements.append({
                     "data": {
@@ -138,5 +135,5 @@ def complex_attack_path():
                     "classes": "vuln_edge"
                 })
 
-    # 3) 渲染模板, 并将 elements 传给前端
+    # 3) render template, and pass elements to front end
     return render_template('analysis_complex_path.html', elements=elements)
