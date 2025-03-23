@@ -1,39 +1,57 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Network Topology List</h2>
-<a href="{{ url_for('topo_bp.topology_add_page') }}" class="btn btn-primary mb-3">
-  Add/Upload Topology
-</a>
-<table class="table table-bordered table-hover">
-  <thead>
-    <tr>
-      <th>Device name</th>
-      <th>IP</th>
-      <th>Type</th>
-      <th>Position</th>
-      <th>Note</th>
-      <th>Operation</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for node in nodes %}
-    <tr>
-      <td>{{ node.device_name }}</td>
-      <td>{{ node.ip_address }}</td>
-      <td>{{ node.device_type }}</td>
-      <td>{{ node.location }}</td>
-      <td>{{ node.notes }}</td>
-      <td>
-        <a href="{{ url_for('topo_bp.topology_edit', node_id=node._id) }}" 
-           class="btn btn-info btn-sm">Edit</a>
-        <a href="{{ url_for('topo_bp.topology_delete', node_id=node._id) }}" 
-           class="btn btn-danger btn-sm"
-           onclick="return confirm('Confirm to delete this node?');">
-          Delete
-        </a>
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+<h2>Network Topology - Subnets and Devices</h2>
+<a href="{{ url_for('topology_bp.add_subnet_page') }}" class="btn btn-primary mb-3">Add Subnet</a>
+<a href="{{ url_for('topology_bp.add_device_page') }}" class="btn btn-secondary mb-3">Add Device</a>
+
+<div class="accordion" id="accordionTop">
+  {% for subnet in subnets %}
+  <div class="card">
+    <div class="card-header" id="heading{{ subnet._id | replace(' ', '_') }}">
+      <h2 class="mb-0 d-flex justify-content-between align-items-center">
+        <button class="btn btn-link text-left" type="button" data-toggle="collapse" data-target="#collapse{{ subnet._id | replace(' ', '_') }}" aria-expanded="true" aria-controls="collapse{{ subnet._id | replace(' ', '_') }}">
+          {{ subnet._id }} - {{ subnet.label }} | Connected: {{ subnet.connected_subnets | join(', ') }}
+        </button>
+        <div>
+          <a href="{{ url_for('topology_bp.edit_subnet', subnet_id=subnet._id) }}" class="btn btn-sm btn-info" onclick="event.stopPropagation();">Edit</a>
+          <a href="{{ url_for('topology_bp.delete_subnet', subnet_id=subnet._id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Confirm to delete this subnet?');">Delete</a>
+        </div>
+      </h2>
+    </div>
+    <div id="collapse{{ subnet._id | replace(' ', '_') }}" class="collapse show" aria-labelledby="heading{{ subnet._id | replace(' ', '_') }}" data-parent="#accordionTop">
+      <div class="card-body">
+        {% if device_map[subnet._id] is defined %}
+        <table class="table table-sm table-bordered">
+          <thead>
+            <tr>
+              <th>Device ID</th>
+              <th>Label</th>
+              <th>IP Address</th>
+              <th>Operating System</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for device in device_map[subnet._id] %}
+            <tr>
+              <td>{{ device._id }}</td>
+              <td>{{ device.label }}</td>
+              <td>{{ device.ip_address }}</td>
+              <td>{{ device.os }}</td>
+              <td>
+                <a href="{{ url_for('topology_bp.edit_device', device_id=device._id) }}" class="btn btn-sm btn-info">Edit Device</a>
+                <a href="{{ url_for('topology_bp.delete_device', device_id=device._id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Confirm to delete this device?');">Delete</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+          <p>No devices found for this subnet.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
 {% endblock %}

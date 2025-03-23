@@ -1,139 +1,78 @@
 # analysis.py
-from flask import Blueprint, render_template, current_app
+from flask import Blueprint, render_template
 from extensions import mongo
-import math
 
 analysis_bp = Blueprint("analysis_bp", __name__)
+
+def load_subnets():
+    subnets_cursor = mongo.db.subnets.find({})
+    return list(subnets_cursor)
+
+def load_devices():
+    devices_cursor = mongo.db.devices.find({})
+    return list(devices_cursor)
+
+def load_vulnerabilities():
+    vulns_cursor = mongo.db.vulnerabilities.find({})
+    return list(vulns_cursor)
 
 @analysis_bp.route('/complex_attack_path')
 def complex_attack_path():
     """
-    Showing an interactive Cytoscape graph includes “subnet→device→vulnerability” three layer
-    vulnerability is represented as circle、device is represented as triangle，subnet is surround the device triangle.
+    Build an interactive compound graph using Cytoscape.js with three layers:
+      - Subnets (compound nodes)
+      - Devices (rectangular nodes, children of subnets)
+      - Vulnerabilities (circular nodes, children of devices)
+    Data is loaded from the MongoDB collections: subnets, devices, vulnerabilities.
     """
+    subnets = load_subnets()
+    devices = load_devices()
+    vulns   = load_vulnerabilities()
 
-    # example data
-    subnets = [
-        {
-            "id": "subnet_public",
-            "label": "Public (10.1.4.0/24)",
-            "connected_subnets": ["subnet_private"],
-            "devices": [
-                {
-                    "id": "device_webserver",
-                    "label": "Web Server",
-                    "ip_address": "10.1.4.10",
-                    "os": "Ubuntu 18.04",
-                    "vulnerabilities": [
-                        {"vuln_id": "vuln_CVE_2019_0211", "desc": "Apache RCE", "prob": 0.8},
-                        {"vuln_id": "vuln_CVE_2020_11947", "desc": "OpenSSL vuln", "prob": 0.5}
-                    ]
-                },
-                {
-                    "id": "device_honeypot",
-                    "label": "Honeypot",
-                    "ip_address": "10.1.4.9",
-                    "os": "Kali Rolling",
-                    "vulnerabilities": [
-                        {"vuln_id": "vuln_Kali_Default", "desc": "Default root login", "prob": 0.6}
-                    ]
-                }
-            ]
-        },
-        {
-            "id": "subnet_private",
-            "label": "Private (10.1.5.0/24)",
-            "connected_subnets": ["subnet_public"],
-            "devices": [
-                {
-                    "id": "device_dbserver",
-                    "label": "DB Server",
-                    "ip_address": "10.1.5.20",
-                    "os": "Ubuntu 18.04",
-                    "vulnerabilities": [
-                        {"vuln_id": "vuln_CVE_2016_6662", "desc": "MySQL config vuln", "prob": 0.7}
-                    ]
-                },
-                {
-                    "id": "device_intranet",
-                    "label": "Intranet App",
-                    "ip_address": "10.1.5.11",
-                    "os": "Windows 10",
-                    "vulnerabilities": [
-                        {"vuln_id": "vuln_SMBGhost", "desc": "SMB v3 RCE", "prob": 0.9},
-                        {"vuln_id": "vuln_RDP_CVE_2020", "desc": "RDP exploit", "prob": 0.4}
-                    ]
-                }
-            ]
-        }
-    ]
-
-    # 2) construct Cytoscape elements: subnets, devices, vulnerabilities
     elements = []
-    #   2.1) Subnet use compound parent or use individual node
-    #        in this case：let "subnet_xxx" as parent, its devices as child node.
-    #        compound node is not necessary, only draw subnet -> device edges.
 
-    for sn in subnets:
-        # subnet node
+    # Process subnets
+    for s in subnets:
+        subnet_id = str(s["_id"])
+        subnet_label = s.get("label", subnet_id)
         elements.append({
-            "data": {
-                "id": sn["id"],
-                "label": sn["label"],
-            },
+            "data": {"id": subnet_id, "label": subnet_label},
             "classes": "subnet"
         })
-        # process connected_subnets => generate edge
-        for nbr_id in sn.get("connected_subnets", []):
-            # only generate on direction, or add a if to avoid repeat
-            edge_id = f"{sn['id']}_to_{nbr_id}"
+        for other in s.get("connected_subnets", []):
+            edge_id = f"{subnet_id}_to_{other}"
             elements.append({
-                "data": {
-                    "id": edge_id,
-                    "source": sn["id"],
-                    "target": nbr_id
-                },
+                "data": {"id": edge_id, "source": subnet_id, "target": other},
                 "classes": "subnet_edge"
             })
 
-        # 2.2) process devices
-        for dev in sn["devices"]:
-            dev_node_id = dev["id"]
-            elements.append({
-                "data": {
-                    "id": dev_node_id,
-                    "parent": sn["id"],   # compound node => parent = subnet
-                    "label": dev["label"],
-                    "ip": dev["ip_address"],
-                    "os": dev["os"]
-                },
-                "classes": "device"
-            })
-            # 2.3) process vulnerability
-            for vul in dev["vulnerabilities"]:
-                vul_node_id = vul["vuln_id"]
-                p = vul["prob"]
-                elements.append({
-                    "data": {
-                        "id": vul_node_id,
-                        "parent": dev_node_id,  # vulnerability在device内部
-                        "label": vul["desc"],
-                        "prob": p,
-                        "vuln_id": vul["vuln_id"]
-                    },
-                    "classes": "vuln"
-                })
-                # edge also can be added: such as "vuln -> device compromised",
-                # here shows directional edge between device-vulnerability (optional)
-                edge_id = f"{vul_node_id}_to_{dev_node_id}"
-                elements.append({
-                    "data": {
-                        "id": edge_id,
-                        "source": vul_node_id,
-                        "target": dev_node_id
-                    },
-                    "classes": "vuln_edge"
-                })
+    # Process devices
+    for d in devices:
+        device_id = str(d["_id"])
+        device_label = d.get("label", device_id)
+        device_ip = d.get("ip_address", "")
+        device_os = d.get("os", "")
+        parent_subnet = d.get("parent_subnet", None)
+        elements.append({
+            "data": {"id": device_id, "parent": parent_subnet, "label": device_label, "ip": device_ip, "os": device_os},
+            "classes": "device"
+        })
 
-    # 3) render template, and pass elements to front end
-    return render_template('analysis_complex_path.html', elements=elements)
+    # Process vulnerabilities
+    for v in vulns:
+        vuln_id = str(v["_id"])
+        vuln_desc = v.get("desc", vuln_id)
+        vuln_prob = v.get("prob", 0.0)
+        parent_device = v.get("parent_device_id", None)
+        elements.append({
+            "data": {"id": vuln_id, "parent": parent_device, "label": vuln_desc, "prob": vuln_prob, "vuln_id": vuln_id},
+            "classes": "vuln"
+        })
+        if parent_device:
+            edge_id = f"{vuln_id}_to_{parent_device}"
+            elements.append({
+                "data": {"id": edge_id, "source": vuln_id, "target": parent_device},
+                "classes": "vuln_edge"
+            })
+
+    return render_template("analysis_complex_path.html", elements=elements)

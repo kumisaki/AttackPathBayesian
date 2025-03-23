@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Add Subnet</h2>
+<ul class="nav nav-tabs" id="subnetTab" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" id="manual-tab" data-toggle="tab" href="#manual" role="tab" aria-controls="manual" aria-selected="true">
+      Manual Add
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="upload-tab" data-toggle="tab" href="#upload" role="tab" aria-controls="upload" aria-selected="false">
+      Upload CSV
+    </a>
+  </li>
+</ul>
+<div class="tab-content mt-3" id="subnetTabContent">
+  <!-- Manual Add Form -->
+  <div class="tab-pane fade show active" id="manual" role="tabpanel" aria-labelledby="manual-tab">
+    <form method="POST" action="{{ url_for('topology_bp.add_subnet_manual') }}">
+      <div class="form-group">
+        <label for="subnet_id">Subnet ID</label>
+        <input type="text" class="form-control" id="subnet_id" name="subnet_id" required>
+      </div>
+      <div class="form-group">
+        <label for="label">Label</label>
+        <input type="text" class="form-control" id="label" name="label" required>
+      </div>
+      <div class="form-group">
+        <label for="connected_subnets">Connected Subnets (comma-separated)</label>
+        <input type="text" class="form-control" id="connected_subnets" name="connected_subnets">
+      </div>
+      <button type="submit" class="btn btn-primary">Add Subnet Manually</button>
+    </form>
+  </div>
+  <!-- CSV Upload Form -->
+  <div class="tab-pane fade" id="upload" role="tabpanel" aria-labelledby="upload-tab">
+    <form method="POST" action="{{ url_for('topology_bp.add_subnet_upload') }}" enctype="multipart/form-data">
+      <div class="form-group">
+        <label for="file">Select CSV File</label>
+        <input type="file" class="form-control-file" id="file" name="file" accept=".csv" required>
+      </div>
+      <button type="submit" class="btn btn-secondary">Upload Subnets CSV</button>
+    </form>
+    <hr>
+    <p class="text-muted">CSV Example (first row as header):</p>
+    <pre>
+subnet_id,label,connected_subnets
+subnet_public,"Public (10.1.4.0/24)","subnet_private"
+subnet_private,"Private (10.1.5.0/24)","subnet_public"
+    </pre>
+  </div>
+</div>
+{% endblock %}

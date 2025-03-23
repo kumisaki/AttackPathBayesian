@@ -1,6 +1,7 @@
+<!-- templates/analysis_complex_path.html -->
 {% extends "base.html" %}
 {% block content %}
-<h2>Attack Path: subnet -> device(triangle) -> vulnerability(circle)</h2>
+<h2>Attack Path: Subnets → Devices (Rectangles) → Vulnerabilities (Circles)</h2>
 <div id="cy" style="width: 100%; height: 700px; border: 1px solid #aaa;"></div>
 
 <!-- Bootstrap Modal for showing node details -->
@@ -8,7 +9,7 @@
   <div class="modal-dialog" role="document">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="nodeDetailModalTitle">节点信息</h5>
+        <h5 class="modal-title" id="nodeDetailModalTitle">Node Details</h5>
         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
           <span aria-hidden="true">&times;</span>
         </button>
@@ -17,8 +18,8 @@
         <p><strong>ID:</strong> <span id="modalNodeId"></span></p>
         <p><strong>Label:</strong> <span id="modalNodeLabel"></span></p>
         <div id="extraDeviceFields" style="display: none;">
-          <p><strong>IP:</strong> <span id="modalDeviceIp"></span></p>
-          <p><strong>OS:</strong> <span id="modalDeviceOs"></span></p>
+          <p><strong>IP Address:</strong> <span id="modalDeviceIp"></span></p>
+          <p><strong>Operating System:</strong> <span id="modalDeviceOs"></span></p>
         </div>
         <div id="extraVulnFields" style="display: none;">
           <p><strong>Vulnerability ID:</strong> <span id="modalVulnId"></span></p>
@@ -26,142 +27,121 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-dismiss="modal">关闭</button>
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- import Cytoscape, dagre and plugin -->
+<!-- Load Cytoscape and dagre plugin from CDN -->
 <script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
 <script src="https://unpkg.com/dagre/dist/dagre.min.js"></script>
 <script src="https://unpkg.com/cytoscape-dagre/cytoscape-dagre.js"></script>
 
 <script>
-// 1) register dagre plugin
-cytoscape.use(cytoscapeDagre);
+  // Register dagre layout plugin
+  cytoscape.use(cytoscapeDagre);
 
-// 2) get elements list from back end (Jinja2 tojson)
-let cyElements = {{ elements|tojson }};
+  // Get elements from backend
+  let cyElements = {{ elements|tojson }};
 
-// 3) initialize Cytoscape
-var cy = cytoscape({
-  container: document.getElementById('cy'),
-  elements: cyElements,
-  layout: {
-    name: 'dagre', // dagre layout
-    padding: 20
-  },
-  style: [
-    {
-      selector: 'node',
-      style: {
-        'label': 'data(label)',
-        'text-wrap': 'wrap',
-        'text-max-width': '100px',
-        'text-valign': 'center',
-        'text-halign': 'center',
-        'font-size': 12,
-        'color': '#fff',
-        'text-outline-color': '#555',
-        'text-outline-width': 2
-      }
+  // Initialize Cytoscape with dagre layout
+  var cy = cytoscape({
+    container: document.getElementById('cy'),
+    elements: cyElements,
+    layout: {
+      name: 'dagre',
+      padding: 20
     },
-    // subnet(the surface layer)
-    {
-      selector: 'node.subnet',
-      style: {
-        'background-color': '#888',
-        'shape': 'roundrectangle',
-        'padding': '20px', // larger compound
-        'compound-sizing-wrt-labels': 'exclude',
+    style: [
+      {
+        selector: 'node',
+        style: {
+          'label': 'data(label)',
+          'text-wrap': 'wrap',
+          'text-max-width': '100px',
+          'text-valign': 'center',
+          'text-halign': 'center',
+          'font-size': 12,
+          'color': '#fff',
+          'text-outline-color': '#555',
+          'text-outline-width': 2
+        }
+      },
+      {
+        selector: 'node.subnet',
+        style: {
+          'background-color': '#888',
+          'shape': 'roundrectangle',
+          'padding': '20px',
+          'compound-sizing-wrt-labels': 'exclude'
+        }
+      },
+      {
+        selector: 'node.device',
+        style: {
+          'background-color': '#337ab7',
+          'shape': 'roundrectangle',
+          'width': '120px',
+          'height': '60px'
+        }
+      },
+      {
+        selector: 'node.vuln',
+        style: {
+          'background-color': function(ele){
+            let p = ele.data('prob') || 0.0;
+            let r = Math.round(255 * p);
+            let g = Math.round(255 * (1 - p));
+            return 'rgb('+r+','+g+',0)';
+          },
+          'shape': 'ellipse',
+          'width': '40px',
+          'height': '40px'
+        }
+      },
+      {
+        selector: 'edge',
+        style: {
+          'width': 2,
+          'line-color': '#bbb',
+          'target-arrow-shape': 'triangle',
+          'target-arrow-color': '#bbb',
+          'curve-style': 'bezier'
+        }
       }
-    },
-    // device(sub node, triangle)
-    {
-      selector: 'node.device',
-      style: {
-        'background-color': '#337ab7',
-        'shape': 'roundrectangle',
-        'width': '120px',
-        'height': '60px'
-      }
-    },
-    // vulnerability(sub node,circle)
-    {
-      selector: 'node.vuln',
-      style: {
-        'background-color': function(ele){
-          let p = ele.data('prob') || 0.0;
-          // 0=green,1=red
-          let r = Math.round(255 * p);
-          let g = Math.round(255 * (1 - p));
-          return 'rgb('+r+','+g+',0)';
-        },
-        'shape': 'ellipse',
-        'width': '40px',
-        'height': '40px'
-      }
-    },
-    // edge
-    {
-      selector: 'edge',
-      style: {
-        'width': 2,
-        'line-color': '#bbb',
-        'target-arrow-shape': 'triangle',
-        'target-arrow-color': '#bbb',
-        'curve-style': 'bezier'
-      }
+    ]
+  });
+
+  // Event listener: show modal with node details on click
+  cy.on('tap', 'node', function(evt){
+    let node = evt.target;
+    let isDevice = node.hasClass('device');
+    let isVuln = node.hasClass('vuln');
+    let isSubnet = node.hasClass('subnet');
+
+    document.getElementById('modalNodeId').textContent = node.id();
+    document.getElementById('modalNodeLabel').textContent = node.data('label') || '';
+
+    // Hide all extra fields
+    document.getElementById('extraDeviceFields').style.display = 'none';
+    document.getElementById('extraVulnFields').style.display = 'none';
+
+    if(isDevice){
+      let ipVal = node.data('ip');
+      let osVal = node.data('os');
+      document.getElementById('modalDeviceIp').textContent = ipVal || '';
+      document.getElementById('modalDeviceOs').textContent = osVal || '';
+      document.getElementById('extraDeviceFields').style.display = 'block';
+    } else if(isVuln){
+      let vId = node.data('vuln_id');
+      let p = node.data('prob') || 0.0;
+      document.getElementById('modalVulnId').textContent = vId;
+      document.getElementById('modalVulnProb').textContent = p.toFixed(2);
+      document.getElementById('extraVulnFields').style.display = 'block';
     }
-  ]
-});
 
-// 4) listen click event, use Modal to show information
-cy.on('tap', 'node', function(evt){
-  let node = evt.target;
-
-  // replace node.classes().has() with node.hasClass('device')
-  if(node.hasClass('device')){
-    // device node
-    document.getElementById('extraDeviceFields').style.display = 'block';
-    document.getElementById('extraVulnFields').style.display = 'none';
-
-    document.getElementById('modalNodeId').textContent = node.id();
-    document.getElementById('modalNodeLabel').textContent = node.data('label') || '';
-    document.getElementById('modalDeviceIp').textContent = node.data('ip') || '';
-    document.getElementById('modalDeviceOs').textContent = node.data('os') || '';
-  }
-  else if(node.hasClass('vuln')){
-    // vulnerability node
-    document.getElementById('extraDeviceFields').style.display = 'none';
-    document.getElementById('extraVulnFields').style.display = 'block';
-
-    document.getElementById('modalNodeId').textContent = node.id();
-    document.getElementById('modalNodeLabel').textContent = node.data('label') || '';
-    document.getElementById('modalVulnId').textContent = node.data('vuln_id') || '';
-    let p = node.data('prob') || 0.0;
-    document.getElementById('modalVulnProb').textContent = p.toFixed(2);
-  }
-  else if(node.hasClass('subnet')){
-    // subnet node
-    document.getElementById('extraDeviceFields').style.display = 'none';
-    document.getElementById('extraVulnFields').style.display = 'none';
-
-    document.getElementById('modalNodeId').textContent = node.id();
-    document.getElementById('modalNodeLabel').textContent = node.data('label') || '';
-  }
-  else {
-    // fallback
-    document.getElementById('extraDeviceFields').style.display = 'none';
-    document.getElementById('extraVulnFields').style.display = 'none';
-
-    document.getElementById('modalNodeId').textContent = node.id();
-    document.getElementById('modalNodeLabel').textContent = node.data('label') || '';
-  }
-
-  // show Modal (Bootstrap 4)
-  $('#nodeDetailModal').modal('show');
-});
+    $('#nodeDetailModal').modal('show');
+  });
 </script>
 {% endblock %}

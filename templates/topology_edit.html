@@ -1,31 +1,19 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Edit Network Topology Node</h2>
-<form method="POST" action="{{ url_for('topo_bp.topology_edit', node_id=node._id) }}">
-  <div class="form-group">
-    <label for="device_name">Device name</label>
-    <input type="text" class="form-control" name="device_name" 
-           value="{{ node.device_name }}" required>
-  </div>
-  <div class="form-group">
-    <label for="ip_address">IP</label>
-    <input type="text" class="form-control" name="ip_address" 
-           value="{{ node.ip_address }}" required>
-  </div>
-  <div class="form-group">
-    <label for="device_type">Type</label>
-    <input type="text" class="form-control" name="device_type" 
-           value="{{ node.device_type }}">
-  </div>
-  <div class="form-group">
-    <label for="location">Position/Subnet</label>
-    <input type="text" class="form-control" name="location" 
-           value="{{ node.location }}">
-  </div>
-  <div class="form-group">
-    <label for="notes">Note</label>
-    <textarea class="form-control" name="notes">{{ node.notes }}</textarea>
-  </div>
-  <button type="submit" class="btn btn-primary">Update</button>
+<h2>Edit Subnet</h2>
+<form method="POST" action="{{ url_for('topology_bp.edit_subnet', subnet_id=subnet._id) }}">
+    <div class="form-group">
+        <label for="subnet_id">Subnet ID</label>
+        <input type="text" class="form-control" id="subnet_id" name="subnet_id" value="{{ subnet._id }}" disabled>
+    </div>
+    <div class="form-group">
+        <label for="label">Label</label>
+        <input type="text" class="form-control" id="label" name="label" value="{{ subnet.label }}" required>
+    </div>
+    <div class="form-group">
+        <label for="connected_subnets">Connected Subnets (comma-separated)</label>
+        <input type="text" class="form-control" id="connected_subnets" name="connected_subnets" value="{{ subnet.connected_subnets | join(', ') }}">
+    </div>
+    <button type="submit" class="btn btn-primary">Update Subnet</button>
 </form>
 {% endblock %}

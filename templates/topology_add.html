@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Add Subnet</h2>
+<form method="POST" action="{{ url_for('topology_bp.add_subnet') }}">
+    <div class="form-group">
+        <label for="subnet_id">Subnet ID</label>
+        <input type="text" class="form-control" id="subnet_id" name="subnet_id" required>
+    </div>
+    <div class="form-group">
+        <label for="label">Label</label>
+        <input type="text" class="form-control" id="label" name="label" required>
+    </div>
+    <div class="form-group">
+        <label for="connected_subnets">Connected Subnets (comma-separated)</label>
+        <input type="text" class="form-control" id="connected_subnets" name="connected_subnets">
+    </div>
+    <button type="submit" class="btn btn-primary">Add Subnet</button>
+</form>
+{% endblock %}

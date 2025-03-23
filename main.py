@@ -1,37 +1,32 @@
 # main.py
-
-import os
 from flask import Flask, render_template
 from extensions import mongo
-from topology import topo_bp
-from vulnerability import vuln_bp
 from analysis import analysis_bp
+from topology import topology_bp
+from vulnerability import vuln_bp
+import os
 
 def create_app():
     app = Flask(__name__)
-    app.secret_key = "SOME_RANDOM_SECRET"
+    app.secret_key = "YOUR_SECRET_KEY"  # Replace with your secure secret key
+    app.config["MONGO_URI"] = "mongodb://localhost:27017/attack_db"
 
-    # config MongoDB
-    app.config["MONGO_URI"] = "mongodb://localhost:27017/vuln_db"
+    # Initialize PyMongo
+    mongo.init_app(app)
 
-    # initialize PyMongo
-    mongo.init_app(app)  
-    # after this，in other modules, it can be used by "from extensions import mongo"
-
-    # config file upload directory
-    app.config["UPLOAD_FOLDER"] = os.path.join(os.path.dirname(__file__), "uploads")
+    # Configure uploads folder
+    app.config["UPLOAD_FOLDER"] = os.path.join(app.root_path, "uploads")
     if not os.path.exists(app.config["UPLOAD_FOLDER"]):
         os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
-    # register Blueprint
-    app.register_blueprint(topo_bp, url_prefix="/topology")
-    app.register_blueprint(vuln_bp, url_prefix="/vulns")
+    # Register blueprints
     app.register_blueprint(analysis_bp, url_prefix="/analysis")
+    app.register_blueprint(topology_bp, url_prefix="/topology")
+    app.register_blueprint(vuln_bp, url_prefix="/vulnerability")
 
-    # router: home page
-    @app.route('/')
+    @app.route("/")
     def index():
-        return render_template('index.html')
+        return render_template("index.html")
 
     return app
 
