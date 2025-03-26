@@ -10,7 +10,9 @@
     <div class="card-header" id="heading{{ subnet._id | replace(' ', '_') }}">
       <h2 class="mb-0 d-flex justify-content-between align-items-center">
         <button class="btn btn-link text-left" type="button" data-toggle="collapse" data-target="#collapse{{ subnet._id | replace(' ', '_') }}" aria-expanded="true" aria-controls="collapse{{ subnet._id | replace(' ', '_') }}">
-          {{ subnet._id }} - {{ subnet.label }} | Connected: {{ subnet.connected_subnets | join(', ') }}
+          <!-- {{ subnet._id }} -  -->
+          {{ subnet.label }}
+           <!-- | Connected: {{ subnet.connected_subnets | join(', ') }} -->
         </button>
         <div>
           <a href="{{ url_for('topology_bp.edit_subnet', subnet_id=subnet._id) }}" class="btn btn-sm btn-info" onclick="event.stopPropagation();">Edit</a>
@@ -27,7 +29,9 @@
               <th>Device ID</th>
               <th>Label</th>
               <th>IP Address</th>
+              <th>Device Type</th>
               <th>Operating System</th>
+              <th>Default gateway</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -37,7 +41,9 @@
               <td>{{ device._id }}</td>
               <td>{{ device.label }}</td>
               <td>{{ device.ip_address }}</td>
+              <td>{{ device.device_type }}</td>
               <td>{{ device.os }}</td>
+              <td>{{ device.default_gateway }}</td>
               <td>
                 <a href="{{ url_for('topology_bp.edit_device', device_id=device._id) }}" class="btn btn-sm btn-info">Edit Device</a>
                 <a href="{{ url_for('topology_bp.delete_device', device_id=device._id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Confirm to delete this device?');">Delete</a>

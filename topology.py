@@ -116,13 +116,17 @@ def add_device_manual():
     device_id = request.form.get("device_id")
     label = request.form.get("label")
     ip_address = request.form.get("ip_address")
+    device_type = request.form.get("device_type")
     os_info = request.form.get("os")
+    default_gateway = request.form.get("default_gateway")
     parent_subnet = request.form.get("parent_subnet")
     mongo.db.devices.insert_one({
         "_id": device_id,
         "label": label,
         "ip_address": ip_address,
+        "device_type": device_type,
         "os": os_info,
+        "default_gateway": default_gateway,
         "parent_subnet": parent_subnet
     })
     flash("Device added successfully (manual).", "success")
@@ -149,7 +153,9 @@ def add_device_upload():
                 device_id = row.get("device_id")
                 label = row.get("label")
                 ip_address = row.get("ip_address")
+                device_type = row.get("device_type")
                 os_info = row.get("os")
+                default_gateway = row.get("default_gateway")
                 parent_subnet = row.get("parent_subnet")
                 if not device_id:
                     continue
@@ -157,7 +163,9 @@ def add_device_upload():
                     "_id": device_id,
                     "label": label,
                     "ip_address": ip_address,
+                    "device_type": device_type,
                     "os": os_info,
+                    "default_gateway": default_gateway,
                     "parent_subnet": parent_subnet
                 })
                 count += 1
@@ -174,14 +182,24 @@ def edit_device(device_id):
         flash("Device not found.", "danger")
         return redirect(url_for("topology_bp.list_topology"))
     if request.method == "POST":
+        # label = request.form.get("label")
+        # ip_address = request.form.get("ip_address")
+        # os_info = request.form.get("os")
+        # parent_subnet = request.form.get("parent_subnet")
+
         label = request.form.get("label")
         ip_address = request.form.get("ip_address")
+        device_type = request.form.get("device_type")
         os_info = request.form.get("os")
+        default_gateway = request.form.get("default_gateway")
         parent_subnet = request.form.get("parent_subnet")
+
         mongo.db.devices.update_one({"_id": device_id}, {"$set": {
             "label": label,
             "ip_address": ip_address,
+            "device_type": device_type,
             "os": os_info,
+            "default_gateway": default_gateway,
             "parent_subnet": parent_subnet
         }})
         flash("Device updated successfully.", "success")

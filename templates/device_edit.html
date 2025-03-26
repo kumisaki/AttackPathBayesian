@@ -15,8 +15,16 @@
         <input type="text" class="form-control" id="ip_address" name="ip_address" value="{{ device.ip_address }}" required>
     </div>
     <div class="form-group">
+        <label for="device_type">Device Type</label>
+        <input type="text" class="form-control" id="device_type" name="device_type" value="{{ device.device_type }}">
+    </div>
+    <div class="form-group">
         <label for="os">Operating System</label>
         <input type="text" class="form-control" id="os" name="os" value="{{ device.os }}">
+    </div>
+    <div class="form-group">
+        <label for="default_gateway">Default Gateway</label>
+        <input type="text" class="form-control" id="default_gateway" name="default_gateway" value="{{ device.default_gateway }}">
     </div>
     <div class="form-group">
         <label for="parent_subnet">Parent Subnet</label>

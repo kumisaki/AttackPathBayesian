@@ -5,7 +5,8 @@
 <div id="cy" style="width: 100%; height: 700px; border: 1px solid #aaa;"></div>
 
 <!-- Bootstrap Modal for showing node details -->
-<div class="modal fade" id="nodeDetailModal" tabindex="-1" role="dialog" aria-labelledby="nodeDetailModalTitle" aria-hidden="true">
+<div class="modal fade" id="nodeDetailModal" tabindex="-1" role="dialog" aria-labelledby="nodeDetailModalTitle"
+  aria-hidden="true">
   <div class="modal-dialog" role="document">
     <div class="modal-content">
       <div class="modal-header">
@@ -43,7 +44,7 @@
   cytoscape.use(cytoscapeDagre);
 
   // Get elements from backend
-  let cyElements = {{ elements|tojson }};
+  let cyElements = {{ elements| tojson }};
 
   // Initialize Cytoscape with dagre layout
   var cy = cytoscape({
@@ -51,7 +52,11 @@
     elements: cyElements,
     layout: {
       name: 'dagre',
-      padding: 20
+      nodeSep: 100,
+      edgeSep: 80,
+      rankSep: 120,
+      rankDir: 'TB',
+      padding: 30
     },
     style: [
       {
@@ -89,11 +94,11 @@
       {
         selector: 'node.vuln',
         style: {
-          'background-color': function(ele){
+          'background-color': function (ele) {
             let p = ele.data('prob') || 0.0;
             let r = Math.round(255 * p);
             let g = Math.round(255 * (1 - p));
-            return 'rgb('+r+','+g+',0)';
+            return 'rgb(' + r + ',' + g + ',0)';
           },
           'shape': 'ellipse',
           'width': '40px',
@@ -114,7 +119,7 @@
   });
 
   // Event listener: show modal with node details on click
-  cy.on('tap', 'node', function(evt){
+  cy.on('tap', 'node', function (evt) {
     let node = evt.target;
     let isDevice = node.hasClass('device');
     let isVuln = node.hasClass('vuln');
@@ -127,13 +132,13 @@
     document.getElementById('extraDeviceFields').style.display = 'none';
     document.getElementById('extraVulnFields').style.display = 'none';
 
-    if(isDevice){
+    if (isDevice) {
       let ipVal = node.data('ip');
       let osVal = node.data('os');
       document.getElementById('modalDeviceIp').textContent = ipVal || '';
       document.getElementById('modalDeviceOs').textContent = osVal || '';
       document.getElementById('extraDeviceFields').style.display = 'block';
-    } else if(isVuln){
+    } else if (isVuln) {
       let vId = node.data('vuln_id');
       let p = node.data('prob') || 0.0;
       document.getElementById('modalVulnId').textContent = vId;

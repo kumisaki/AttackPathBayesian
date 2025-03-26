@@ -18,61 +18,71 @@ def load_vulnerabilities():
 
 @analysis_bp.route('/complex_attack_path')
 def complex_attack_path():
-    """
-    Build an interactive compound graph using Cytoscape.js with three layers:
-      - Subnets (compound nodes)
-      - Devices (rectangular nodes, children of subnets)
-      - Vulnerabilities (circular nodes, children of devices)
-    Data is loaded from the MongoDB collections: subnets, devices, vulnerabilities.
-    """
     subnets = load_subnets()
     devices = load_devices()
     vulns   = load_vulnerabilities()
 
     elements = []
+    subnet_ids = {str(s["_id"]): s for s in subnets}
+    device_ids = {str(d["_id"]): d for d in devices}
 
-    # Process subnets
+    # Subnet Nodes
     for s in subnets:
-        subnet_id = str(s["_id"])
-        subnet_label = s.get("label", subnet_id)
+        sid = str(s["_id"])
+        label = s.get("label", sid)
         elements.append({
-            "data": {"id": subnet_id, "label": subnet_label},
+            "data": {"id": sid, "label": label},
             "classes": "subnet"
         })
-        for other in s.get("connected_subnets", []):
-            edge_id = f"{subnet_id}_to_{other}"
-            elements.append({
-                "data": {"id": edge_id, "source": subnet_id, "target": other},
-                "classes": "subnet_edge"
-            })
+        # Connect subnets
+        for connected_sid in s.get("connected_subnets", []):
+            if connected_sid in subnet_ids:  # ensure target exists
+                elements.append({
+                    "data": {"id": f"{sid}_to_{connected_sid}", "source": sid, "target": connected_sid},
+                    "classes": "subnet_edge"
+                })
 
-    # Process devices
+    # Device Nodes
     for d in devices:
-        device_id = str(d["_id"])
-        device_label = d.get("label", device_id)
-        device_ip = d.get("ip_address", "")
-        device_os = d.get("os", "")
-        parent_subnet = d.get("parent_subnet", None)
+        did = str(d["_id"])
+        label = d.get("label", did)
+        parent_subnet = d.get("parent_subnet", "")
         elements.append({
-            "data": {"id": device_id, "parent": parent_subnet, "label": device_label, "ip": device_ip, "os": device_os},
+            "data": {
+                "id": did,
+                "label": label,
+                "ip": d.get("ip_address", ""),
+                "os": d.get("os", ""),
+                "parent": parent_subnet
+            },
             "classes": "device"
         })
-
-    # Process vulnerabilities
-    for v in vulns:
-        vuln_id = str(v["_id"])
-        vuln_desc = v.get("desc", vuln_id)
-        vuln_prob = v.get("prob", 0.0)
-        parent_device = v.get("parent_device_id", None)
+        # Edge (optional if you want visual link)
         elements.append({
-            "data": {"id": vuln_id, "parent": parent_device, "label": vuln_desc, "prob": vuln_prob, "vuln_id": vuln_id},
+            "data": {"id": f"{did}_to_{parent_subnet}", "source": did, "target": parent_subnet},
+            "classes": "device_edge"
+        })
+
+    # Vulnerability Nodes
+    for v in vulns:
+        vid = str(v["_id"])
+        parent_device = v.get("parent_device_id", "")
+        prob = v.get("prob", 0.0)
+        elements.append({
+            "data": {
+                "id": vid,
+                "label": v.get("desc", vid),
+                "prob": prob,
+                "vuln_id": vid,
+                "parent": parent_device
+            },
             "classes": "vuln"
         })
-        if parent_device:
-            edge_id = f"{vuln_id}_to_{parent_device}"
-            elements.append({
-                "data": {"id": edge_id, "source": vuln_id, "target": parent_device},
-                "classes": "vuln_edge"
-            })
+        # Edge (optional if you want visual link)
+        elements.append({
+            "data": {"id": f"{vid}_to_{parent_device}", "source": vid, "target": parent_device},
+            "classes": "vuln_edge"
+        })
 
     return render_template("analysis_complex_path.html", elements=elements)
+
