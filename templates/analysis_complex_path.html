@@ -104,6 +104,23 @@
           'width': '40px',
           'height': '40px'
         }
+      }, {
+        selector: 'node.technique',
+        style: {
+          'background-color': '#6f42c1',
+          'shape': 'hexagon',
+          'width': '80px',
+          'height': '50px'
+        }
+      },
+      {
+        selector: 'node.tactic',
+        style: {
+          'background-color': '#17a2b8',
+          'shape': 'octagon',
+          'width': '80px',
+          'height': '50px'
+        }
       },
       {
         selector: 'edge',
@@ -114,7 +131,19 @@
           'target-arrow-color': '#bbb',
           'curve-style': 'bezier'
         }
+      },
+      {
+        selector: 'edge.tactic_path',
+        style: {
+          'line-style': 'dashed',
+          'line-color': '#17a2b8',
+          'target-arrow-shape': 'vee',
+          'target-arrow-color': '#17a2b8',
+          'width': 2
+        }
       }
+
+
     ]
   });
 

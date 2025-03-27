@@ -5,16 +5,13 @@ from extensions import mongo
 analysis_bp = Blueprint("analysis_bp", __name__)
 
 def load_subnets():
-    subnets_cursor = mongo.db.subnets.find({})
-    return list(subnets_cursor)
+    return list(mongo.db.subnets.find({}))
 
 def load_devices():
-    devices_cursor = mongo.db.devices.find({})
-    return list(devices_cursor)
+    return list(mongo.db.devices.find({}))
 
 def load_vulnerabilities():
-    vulns_cursor = mongo.db.vulnerabilities.find({})
-    return list(vulns_cursor)
+    return list(mongo.db.vulnerabilities.find({}))
 
 def load_techniques():
     return list(mongo.db.techniques.find({}))
@@ -30,15 +27,11 @@ def load_technique_to_tactic():
 def complex_attack_path():
     subnets = load_subnets()
     devices = load_devices()
-    vulns   = load_vulnerabilities()
+    vulns = load_vulnerabilities()
     techniques = load_techniques()
     tactics = load_tactics()
     tech2tactic = load_technique_to_tactic()
     tactic_map = {t["tactic_id"]: t for t in tactics}
-
-    # Add technique nodes and edges from vulnerabilities
-    added_techniques = set()
-    added_tactics = set()
 
     elements = []
     subnet_ids = {str(s["_id"]): s for s in subnets}
@@ -47,14 +40,9 @@ def complex_attack_path():
     # Subnet Nodes
     for s in subnets:
         sid = str(s["_id"])
-        label = s.get("label", sid)
-        elements.append({
-            "data": {"id": sid, "label": label},
-            "classes": "subnet"
-        })
-        # Connect subnets
+        elements.append({"data": {"id": sid, "label": s.get("label", sid)}, "classes": "subnet"})
         for connected_sid in s.get("connected_subnets", []):
-            if connected_sid in subnet_ids:  # ensure target exists
+            if connected_sid in subnet_ids:
                 elements.append({
                     "data": {"id": f"{sid}_to_{connected_sid}", "source": sid, "target": connected_sid},
                     "classes": "subnet_edge"
@@ -63,25 +51,25 @@ def complex_attack_path():
     # Device Nodes
     for d in devices:
         did = str(d["_id"])
-        label = d.get("label", did)
-        parent_subnet = d.get("parent_subnet", "")
         elements.append({
             "data": {
                 "id": did,
-                "label": label,
+                "label": d.get("label", did),
                 "ip": d.get("ip_address", ""),
                 "os": d.get("os", ""),
-                "parent": parent_subnet
+                "parent": d.get("parent_subnet", "")
             },
             "classes": "device"
         })
-        # Edge (optional if you want visual link)
         elements.append({
-            "data": {"id": f"{did}_to_{parent_subnet}", "source": did, "target": parent_subnet},
+            "data": {"id": f"{did}_to_{d.get('parent_subnet')}", "source": did, "target": d.get("parent_subnet")},
             "classes": "device_edge"
         })
 
     # Vulnerability Nodes
+    added_techniques = set()
+    added_tactics = set()
+
     for v in vulns:
         vid = str(v["_id"])
         parent_device = v.get("parent_device_id", "")
@@ -96,11 +84,39 @@ def complex_attack_path():
             },
             "classes": "vuln"
         })
-        # Edge (optional if you want visual link)
         elements.append({
             "data": {"id": f"{vid}_to_{parent_device}", "source": vid, "target": parent_device},
             "classes": "vuln_edge"
         })
 
-    return render_template("analysis_complex_path.html", elements=elements)
+        # Techniques + Tactics
+        technique_ids = v.get("attack_techniques", [])
+        for tid in technique_ids:
+            if tid not in added_techniques:
+                elements.append({
+                    "data": {"id": tid, "label": tid},
+                    "classes": "technique"
+                })
+                added_techniques.add(tid)
 
+            elements.append({
+                "data": {"id": f"{vid}_to_{tid}", "source": vid, "target": tid},
+                "classes": "tech_edge"
+            })
+
+            tactic_id = tech2tactic.get(tid)
+            if tactic_id and tactic_id not in added_tactics:
+                label = tactic_map.get(tactic_id, {}).get("tactic_name", tactic_id)
+                elements.append({
+                    "data": {"id": tactic_id, "label": label},
+                    "classes": "tactic"
+                })
+                added_tactics.add(tactic_id)
+
+            if tactic_id:
+                elements.append({
+                    "data": {"id": f"{tid}_to_{tactic_id}", "source": tid, "target": tactic_id},
+                    "classes": "tactic_edge"
+                })
+
+    return render_template("analysis_complex_path.html", elements=elements)
