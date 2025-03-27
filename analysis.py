@@ -105,7 +105,6 @@ def complex_attack_path():
             })
 
             tactic_id = tech2tactic.get(tid)
-            print(tech2tactic)
             if tactic_id and tactic_id not in added_tactics:
                 label = tactic_map.get(tactic_id, {}).get("tactic_name", tactic_id)
                 elements.append({

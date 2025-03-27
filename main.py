@@ -11,18 +11,24 @@ def create_app():
     app = Flask(__name__)
     app.secret_key = "your-secret-key"
 
-    # 注册原有功能模块
+    # Configure uploads folder
+    app.config["UPLOAD_FOLDER"] = os.path.join(app.root_path, "uploads")
+    if not os.path.exists(app.config["UPLOAD_FOLDER"]):
+        os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+    print('folder is prepared.')
+
+    # Register blueprints
     app.register_blueprint(topology_bp, url_prefix="/topology")
     app.register_blueprint(vuln_bp, url_prefix="/vulnerability")
     app.register_blueprint(analysis_bp, url_prefix="/analysis")
 
-    # 首页：项目选择入口
+    # Home page: create new project/select a project
     @app.route("/")
     def index():
         projects = list(project_admin["projects"].find({}))
         return render_template("project_selector.html", projects=projects)
 
-    # 切换项目：将所选数据库名写入 session
+    # Change Project：put the databse name into session
     @app.route("/project/select", methods=["POST"])
     def select_project():
         dbname = request.form.get("project_db")
@@ -33,16 +39,30 @@ def create_app():
             flash("Project not selected", "danger")
         return redirect(url_for("index"))
 
-    # 创建新项目
+    # Create new project
     @app.route("/project/create", methods=["POST"])
     def create_project():
         name = request.form.get("project_name")
         if not name:
             flash("Project name required", "danger")
             return redirect(url_for("index"))
+
         dbname = f"project_{name}"
-        # 在主控项目表中注册
+        
+        # Check for duplication
+        if project_admin["projects"].find_one({"db": dbname}):
+            flash(f"Project '{name}' already exists!", "warning")
+            return redirect(url_for("index"))
+
+        # Register in control DB
         project_admin["projects"].insert_one({"name": name, "db": dbname})
+
+        # Create new MongoDB database by inserting dummy data
+        client = MongoClient("mongodb://localhost:27017")
+        new_db = client[dbname]
+        new_db.subnets.insert_one({"_id": "__init__", "label": "init", "connected_subnets": []})
+        new_db.subnets.delete_one({"_id": "__init__"})
+
         flash(f"Project '{name}' created!", "success")
         return redirect(url_for("index"))
 
