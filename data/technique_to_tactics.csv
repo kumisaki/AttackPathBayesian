@@ -1,0 +1,95 @@
+,technique_id,technique_name,tactic_id,tactic_name
+0,T0817,Drive-by Compromise,TA0108,Initial Access
+1,T0819,Exploit Public-Facing Application,TA0108,Initial Access
+2,T0866,Exploitation of Remote Services,TA0108,Initial Access
+3,T0822,External Remote Services,TA0108,Initial Access
+4,T0883,Internet Accessible Device,TA0108,Initial Access
+5,T0886,Remote Services,TA0108,Initial Access
+6,T0847,Replication Through Removable Media,TA0108,Initial Access
+7,T0848,Rogue Master,TA0108,Initial Access
+8,T0865,Spearphishing Attachment,TA0108,Initial Access
+9,T0862,Supply Chain Compromise,TA0108,Initial Access
+10,T0864,Transient Cyber Asset,TA0108,Initial Access
+11,T0860,Wireless Compromise,TA0108,Initial Access
+12,T0895,Autorun Image,TA0104,Execution
+13,T0858,Change Operating Mode,TA0104,Execution
+14,T0807,Command-Line Interface,TA0104,Execution
+15,T0871,Execution through API,TA0104,Execution
+16,T0823,Graphical User Interface,TA0104,Execution
+17,T0874,Hooking,TA0104,Execution
+18,T0821,Modify Controller Tasking,TA0104,Execution
+19,T0834,Native API,TA0104,Execution
+20,T0853,Scripting,TA0104,Execution
+21,T0863,User Execution,TA0104,Execution
+22,T0891,Hardcoded Credentials,TA0110,Persistence
+23,T0889,Modify Program,TA0110,Persistence
+24,T0839,Module Firmware,TA0110,Persistence
+25,T0873,Project File Infection,TA0110,Persistence
+26,T0857,System Firmware,TA0110,Persistence
+27,T0859,Valid Accounts,TA0110,Persistence
+28,T0890,Exploitation for Privilege Escalation,TA0111,Privilege Escalation
+29,T0874,Hooking,TA0111,Privilege Escalation
+30,T0858,Change Operating Mode,TA0103,Evasion
+31,T0820,Exploitation for Evasion,TA0103,Evasion
+32,T0872,Indicator Removal on Host,TA0103,Evasion
+33,T0849,Masquerading,TA0103,Evasion
+34,T0851,Rootkit,TA0103,Evasion
+35,T0856,Spoof Reporting Message,TA0103,Evasion
+36,T0894,System Binary Proxy Execution,TA0103,Evasion
+37,T0840,Network Connection Enumeration,TA0102,Discovery
+38,T0842,Network Sniffing,TA0102,Discovery
+39,T0846,Remote System Discovery,TA0102,Discovery
+40,T0888,Remote System Information Discovery,TA0102,Discovery
+41,T0887,Wireless Sniffing,TA0102,Discovery
+42,T0812,Default Credentials,TA0109,Lateral Movement
+43,T0866,Exploitation of Remote Services,TA0109,Lateral Movement
+44,T0891,Hardcoded Credentials,TA0109,Lateral Movement
+45,T0867,Lateral Tool Transfer,TA0109,Lateral Movement
+46,T0843,Program Download,TA0109,Lateral Movement
+47,T0886,Remote Services,TA0109,Lateral Movement
+48,T0859,Valid Accounts,TA0109,Lateral Movement
+49,T0830,Adversary-in-the-Middle,TA0100,Collection
+50,T0802,Automated Collection,TA0100,Collection
+51,T0811,Data from Information Repositories,TA0100,Collection
+52,T0893,Data from Local System,TA0100,Collection
+53,T0868,Detect Operating Mode,TA0100,Collection
+54,T0877,I/O Image,TA0100,Collection
+55,T0801,Monitor Process State,TA0100,Collection
+56,T0861,Point & Tag Identification,TA0100,Collection
+57,T0845,Program Upload,TA0100,Collection
+58,T0852,Screen Capture,TA0100,Collection
+59,T0887,Wireless Sniffing,TA0100,Collection
+60,T0885,Commonly Used Port,TA0101,Command and Control
+61,T0884,Connection Proxy,TA0101,Command and Control
+62,T0869,Standard Application Layer Protocol,TA0101,Command and Control
+63,T0800,Activate Firmware Update Mode,TA0107,Inhibit Response Function
+64,T0878,Alarm Suppression,TA0107,Inhibit Response Function
+65,T0803,Block Command Message,TA0107,Inhibit Response Function
+66,T0804,Block Reporting Message,TA0107,Inhibit Response Function
+67,T0805,Block Serial COM,TA0107,Inhibit Response Function
+68,T0892,Change Credential,TA0107,Inhibit Response Function
+69,T0809,Data Destruction,TA0107,Inhibit Response Function
+70,T0814,Denial of Service,TA0107,Inhibit Response Function
+71,T0816,Device Restart/Shutdown,TA0107,Inhibit Response Function
+72,T0835,Manipulate I/O Image,TA0107,Inhibit Response Function
+73,T0838,Modify Alarm Settings,TA0107,Inhibit Response Function
+74,T0851,Rootkit,TA0107,Inhibit Response Function
+75,T0881,Service Stop,TA0107,Inhibit Response Function
+76,T0857,System Firmware,TA0107,Inhibit Response Function
+77,T0806,Brute Force I/O,TA0106,Impair Process Control
+78,T0836,Modify Parameter,TA0106,Impair Process Control
+79,T0839,Module Firmware,TA0106,Impair Process Control
+80,T0856,Spoof Reporting Message,TA0106,Impair Process Control
+81,T0855,Unauthorized Command Message,TA0106,Impair Process Control
+82,T0879,Damage to Property,TA0105,Impact
+83,T0813,Denial of Control,TA0105,Impact
+84,T0815,Denial of View,TA0105,Impact
+85,T0826,Loss of Availability,TA0105,Impact
+86,T0827,Loss of Control,TA0105,Impact
+87,T0828,Loss of Productivity and Revenue,TA0105,Impact
+88,T0837,Loss of Protection,TA0105,Impact
+89,T0880,Loss of Safety,TA0105,Impact
+90,T0829,Loss of View,TA0105,Impact
+91,T0831,Manipulation of Control,TA0105,Impact
+92,T0832,Manipulation of View,TA0105,Impact
+93,T0882,Theft of Operational Information,TA0105,Impact

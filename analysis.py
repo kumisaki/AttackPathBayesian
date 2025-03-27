@@ -1,26 +1,26 @@
 # analysis.py
-from flask import Blueprint, render_template
-from extensions import mongo
+from flask import Blueprint, render_template, session
+from extensions import get_project_db, attack_reference
 
 analysis_bp = Blueprint("analysis_bp", __name__)
 
 def load_subnets():
-    return list(mongo.db.subnets.find({}))
+    return list(get_project_db(session["project_db"]).subnets.find({}))
 
 def load_devices():
-    return list(mongo.db.devices.find({}))
+    return list(get_project_db(session["project_db"]).devices.find({}))
 
 def load_vulnerabilities():
-    return list(mongo.db.vulnerabilities.find({}))
+    return list(get_project_db(session["project_db"]).vulnerabilities.find({}))
 
 def load_techniques():
-    return list(mongo.db.techniques.find({}))
+    return list(attack_reference.techniques.find({}))
 
 def load_tactics():
-    return list(mongo.db.tactics.find({}))
+    return list(attack_reference.tactics.find({}))
 
 def load_technique_to_tactic():
-    mappings = list(mongo.db.techniques_to_tactics.find({}))
+    mappings = list(get_project_db(session["project_db"]).techniques_to_tactics.find({}))
     return {m["technique_id"]: m["tactic_id"] for m in mappings if "technique_id" in m and "tactic_id" in m}
 
 @analysis_bp.route('/complex_attack_path')

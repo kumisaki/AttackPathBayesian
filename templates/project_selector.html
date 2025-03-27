@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+  <h2 class="mb-4">📂 Select or Create a Project</h2>
+
+  <form method="POST" action="{{ url_for('select_project') }}" class="mb-4">
+    <div class="form-group">
+      <label for="project_db">🔽 Choose Existing Project</label>
+      <select name="project_db" id="project_db" class="form-control">
+        {% for p in projects %}
+          <option value="{{ p.db }}">{{ p.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="btn btn-primary">✅ Switch Project</button>
+  </form>
+
+  <hr>
+
+  <form method="POST" action="{{ url_for('create_project') }}">
+    <div class="form-group">
+      <label for="project_name">🆕 Create New Project</label>
+      <input type="text" name="project_name" class="form-control" placeholder="e.g., red_team_test" required>
+    </div>
+    <button class="btn btn-success">➕ Create Project</button>
+  </form>
+</div>
+{% endblock %}

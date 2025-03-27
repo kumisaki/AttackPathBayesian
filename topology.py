@@ -1,8 +1,9 @@
 # topology.py
 import os
 import csv
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
-from extensions import mongo
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, session
+from extensions import get_project_db
+
 
 topology_bp = Blueprint("topology_bp", __name__)
 
@@ -11,8 +12,9 @@ def allowed_file(filename):
 
 @topology_bp.route('/list')
 def list_topology():
-    subnets = list(mongo.db.subnets.find({}))
-    devices = list(mongo.db.devices.find({}))
+
+    subnets = list(get_project_db(session["project_db"]).subnets.find({}))
+    devices = list(get_project_db(session["project_db"]).devices.find({}))
     device_map = {}
     for device in devices:
         parent = device.get("parent_subnet", "")
@@ -36,7 +38,7 @@ def add_subnet_manual():
         connected = [s.strip() for s in connected_subnets.split(",") if s.strip()]
     else:
         connected = []
-    mongo.db.subnets.insert_one({
+    get_project_db(session["project_db"]).subnets.insert_one({
         "_id": subnet_id,
         "label": label,
         "connected_subnets": connected
@@ -72,7 +74,7 @@ def add_subnet_upload():
                     connected = []
                 if not subnet_id:
                     continue
-                mongo.db.subnets.insert_one({
+                get_project_db(session["project_db"]).subnets.insert_one({
                     "_id": subnet_id,
                     "label": label,
                     "connected_subnets": connected
@@ -86,7 +88,7 @@ def add_subnet_upload():
 
 @topology_bp.route('/edit/<subnet_id>', methods=["GET", "POST"])
 def edit_subnet(subnet_id):
-    subnet = mongo.db.subnets.find_one({"_id": subnet_id})
+    subnet = get_project_db(session["project_db"]).subnets.find_one({"_id": subnet_id})
     if not subnet:
         flash("Subnet not found.", "danger")
         return redirect(url_for("topology_bp.list_topology"))
@@ -94,21 +96,21 @@ def edit_subnet(subnet_id):
         label = request.form.get("label")
         connected_subnets = request.form.get("connected_subnets")
         connected = [s.strip() for s in connected_subnets.split(",") if s.strip()] if connected_subnets else []
-        mongo.db.subnets.update_one({"_id": subnet_id}, {"$set": {"label": label, "connected_subnets": connected}})
+        get_project_db(session["project_db"]).subnets.update_one({"_id": subnet_id}, {"$set": {"label": label, "connected_subnets": connected}})
         flash("Subnet updated successfully.", "success")
         return redirect(url_for("topology_bp.list_topology"))
     return render_template("topology_edit.html", subnet=subnet)
 
 @topology_bp.route('/delete/<subnet_id>')
 def delete_subnet(subnet_id):
-    mongo.db.subnets.delete_one({"_id": subnet_id})
+    get_project_db(session["project_db"]).subnets.delete_one({"_id": subnet_id})
     flash("Subnet deleted.", "info")
     return redirect(url_for("topology_bp.list_topology"))
 
 # Device management
 @topology_bp.route('/device/add', methods=["GET"])
 def add_device_page():
-    subnets = list(mongo.db.subnets.find({}))
+    subnets = list(get_project_db(session["project_db"]).subnets.find({}))
     return render_template("device_add_or_upload.html", subnets=subnets)
 
 @topology_bp.route('/device/add/manual', methods=["POST"])
@@ -120,7 +122,7 @@ def add_device_manual():
     os_info = request.form.get("os")
     default_gateway = request.form.get("default_gateway")
     parent_subnet = request.form.get("parent_subnet")
-    mongo.db.devices.insert_one({
+    get_project_db(session["project_db"]).devices.insert_one({
         "_id": device_id,
         "label": label,
         "ip_address": ip_address,
@@ -159,7 +161,7 @@ def add_device_upload():
                 parent_subnet = row.get("parent_subnet")
                 if not device_id:
                     continue
-                mongo.db.devices.insert_one({
+                get_project_db(session["project_db"]).devices.insert_one({
                     "_id": device_id,
                     "label": label,
                     "ip_address": ip_address,
@@ -177,7 +179,7 @@ def add_device_upload():
 
 @topology_bp.route('/device/edit/<device_id>', methods=["GET", "POST"])
 def edit_device(device_id):
-    device = mongo.db.devices.find_one({"_id": device_id})
+    device = get_project_db(session["project_db"]).devices.find_one({"_id": device_id})
     if not device:
         flash("Device not found.", "danger")
         return redirect(url_for("topology_bp.list_topology"))
@@ -194,7 +196,7 @@ def edit_device(device_id):
         default_gateway = request.form.get("default_gateway")
         parent_subnet = request.form.get("parent_subnet")
 
-        mongo.db.devices.update_one({"_id": device_id}, {"$set": {
+        get_project_db(session["project_db"]).devices.update_one({"_id": device_id}, {"$set": {
             "label": label,
             "ip_address": ip_address,
             "device_type": device_type,
@@ -204,11 +206,11 @@ def edit_device(device_id):
         }})
         flash("Device updated successfully.", "success")
         return redirect(url_for("topology_bp.list_topology"))
-    subnets = list(mongo.db.subnets.find({}))
+    subnets = list(get_project_db(session["project_db"]).subnets.find({}))
     return render_template("device_edit.html", device=device, subnets=subnets)
 
 @topology_bp.route('/device/delete/<device_id>')
 def delete_device(device_id):
-    mongo.db.devices.delete_one({"_id": device_id})
+    get_project_db(session["project_db"]).devices.delete_one({"_id": device_id})
     flash("Device deleted.", "info")
     return redirect(url_for("topology_bp.list_topology"))
