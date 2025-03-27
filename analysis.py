@@ -20,7 +20,7 @@ def load_tactics():
     return list(attack_reference.tactics.find({}))
 
 def load_technique_to_tactic():
-    mappings = list(get_project_db(session["project_db"]).techniques_to_tactics.find({}))
+    mappings = list(attack_reference.techniques_to_tactics.find({}))
     return {m["technique_id"]: m["tactic_id"] for m in mappings if "technique_id" in m and "tactic_id" in m}
 
 @analysis_bp.route('/complex_attack_path')
@@ -105,6 +105,7 @@ def complex_attack_path():
             })
 
             tactic_id = tech2tactic.get(tid)
+            print(tech2tactic)
             if tactic_id and tactic_id not in added_tactics:
                 label = tactic_map.get(tactic_id, {}).get("tactic_name", tactic_id)
                 elements.append({
