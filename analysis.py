@@ -1,6 +1,7 @@
 # analysis.py
 from flask import Blueprint, render_template, session
 from extensions import get_project_db, attack_reference
+from collections import defaultdict
 
 analysis_bp = Blueprint("analysis_bp", __name__)
 
@@ -29,42 +30,73 @@ def complex_attack_path():
     devices = load_devices()
     vulns = load_vulnerabilities()
     techniques = load_techniques()
+    technique_map = {t["technique_id"]: t for t in techniques}
     tactics = load_tactics()
     tech2tactic = load_technique_to_tactic()
     tactic_map = {t["tactic_id"]: t for t in tactics}
 
     elements = []
+
     subnet_ids = {str(s["_id"]): s for s in subnets}
     device_ids = {str(d["_id"]): d for d in devices}
 
-    # Subnet Nodes
+    # 1️⃣ Add subnet nodes (containers)
     for s in subnets:
         sid = str(s["_id"])
-        elements.append({"data": {"id": sid, "label": s.get("label", sid)}, "classes": "subnet"})
-        for connected_sid in s.get("connected_subnets", []):
-            if connected_sid in subnet_ids:
-                elements.append({
-                    "data": {"id": f"{sid}_to_{connected_sid}", "source": sid, "target": connected_sid},
-                    "classes": "subnet_edge"
-                })
-
-    # Device Nodes
-    for d in devices:
-        did = str(d["_id"])
+        cidr = s.get("cidr", "")
+        zone = s.get("zone", "")
         elements.append({
             "data": {
-                "id": did,
-                "label": d.get("label", did),
-                "ip": d.get("ip_address", ""),
-                "os": d.get("os", ""),
-                "parent": d.get("parent_subnet", "")
-            },
+                "id": sid,
+                "label": s.get("label", sid),
+                "CIDR": cidr,
+                "Zone": zone
+                },
+            "classes": "subnet"
+        })
+
+    # 2️⃣ Map each device to the set of connected subnets
+    device_subnets = {}
+    for d in devices:
+        subnets_used = {
+            iface.get("subnet") for iface in d.get("interfaces", [])
+            if iface.get("subnet") in subnet_ids
+        }
+        device_subnets[d["_id"]] = list(subnets_used)
+
+    # 3️⃣ Add device nodes
+    for d in devices:
+        did = str(d["_id"])
+        connected_subnets = device_subnets.get(did, [])
+
+        node_data = {
+            "id": did,
+            "label": d.get("label", did)
+        }
+
+        # If only one subnet, nest device inside that subnet
+        if len(connected_subnets) == 1:
+            node_data["parent"] = connected_subnets[0]
+
+        elements.append({
+            "data": node_data,
             "classes": "device"
         })
-        elements.append({
-            "data": {"id": f"{did}_to_{d.get('parent_subnet')}", "source": did, "target": d.get("parent_subnet")},
-            "classes": "device_edge"
-        })
+
+    # 4️⃣ Add device → subnet edges
+    for d in devices:
+        did = str(d["_id"])
+        for iface in d.get("interfaces", []):
+            sid = iface.get("subnet")
+            if sid and sid in subnet_ids:
+                elements.append({
+                    "data": {
+                        "id": f"{did}_to_{sid}",
+                        "source": did,
+                        "target": sid
+                    },
+                    "classes": "device_subnet_edge"
+                })
 
     # Vulnerability Nodes
     added_techniques = set()
@@ -77,24 +109,36 @@ def complex_attack_path():
         elements.append({
             "data": {
                 "id": vid,
-                "label": v.get("desc", vid),
+                "label": vid,
+                "desc": v.get("desc", vid),
                 "prob": prob,
                 "vuln_id": vid,
-                "parent": parent_device
             },
             "classes": "vuln"
         })
         elements.append({
-            "data": {"id": f"{vid}_to_{parent_device}", "source": vid, "target": parent_device},
+            "data": {
+                "id": f"{vid}_to_{parent_device}",
+                "source": vid,
+                "target": parent_device,
+                "prob": prob,
+                "label": f"{prob: .2f}"
+                },
             "classes": "vuln_edge"
         })
 
         # Techniques + Tactics
         technique_ids = v.get("attack_techniques", [])
         for tid in technique_ids:
+        
             if tid not in added_techniques:
+                tech_info = technique_map.get(tid, {})
+                label = tech_info.get("technique_name", "")
                 elements.append({
-                    "data": {"id": tid, "label": tid},
+                    "data": {
+                        "id": tid,
+                        "label": label
+                        },
                     "classes": "technique"
                 })
                 added_techniques.add(tid)

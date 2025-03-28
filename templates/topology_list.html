@@ -40,10 +40,18 @@
             <tr>
               <td>{{ device._id }}</td>
               <td>{{ device.label }}</td>
-              <td>{{ device.ip_address }}</td>
+              <td>
+                {% for iface in device.interfaces %}
+                  <div>{{ iface.ip_address }}</div>
+                {% endfor %}
+              </td>
               <td>{{ device.device_type }}</td>
               <td>{{ device.os }}</td>
-              <td>{{ device.default_gateway }}</td>
+              <td>
+                {% for iface in device.interfaces %}
+                  <div>{{ iface.gateway or '—' }}</div>
+                {% endfor %}
+              </td>
               <td>
                 <a href="{{ url_for('topology_bp.edit_device', device_id=device._id) }}" class="btn btn-sm btn-info">Edit Device</a>
                 <a href="{{ url_for('topology_bp.delete_device', device_id=device._id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Confirm to delete this device?');">Delete</a>
@@ -51,6 +59,7 @@
             </tr>
             {% endfor %}
           </tbody>
+          
         </table>
         {% else %}
           <p>No devices found for this subnet.</p>

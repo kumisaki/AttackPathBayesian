@@ -3,12 +3,14 @@
 <h2>Add Device</h2>
 <ul class="nav nav-tabs" id="deviceTab" role="tablist">
   <li class="nav-item">
-    <a class="nav-link active" id="manual-tab" data-toggle="tab" href="#manual" role="tab" aria-controls="manual" aria-selected="true">
+    <a class="nav-link active" id="manual-tab" data-toggle="tab" href="#manual" role="tab" aria-controls="manual"
+      aria-selected="true">
       Manual Add
     </a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="upload-tab" data-toggle="tab" href="#upload" role="tab" aria-controls="upload" aria-selected="false">
+    <a class="nav-link" id="upload-tab" data-toggle="tab" href="#upload" role="tab" aria-controls="upload"
+      aria-selected="false">
       Upload CSV
     </a>
   </li>
@@ -25,10 +27,10 @@
         <label for="label">Device Label</label>
         <input type="text" class="form-control" id="label" name="label" required>
       </div>
-      <div class="form-group">
+      <!-- <div class="form-group">
         <label for="ip_address">IP Address</label>
         <input type="text" class="form-control" id="ip_address" name="ip_address" required>
-      </div>
+      </div> -->
       <div class="form-group">
         <label for="device_type">Type</label>
         <input type="text" class="form-control" id="device_type" name="device_type" required>
@@ -37,17 +39,31 @@
         <label for="os">Operating System</label>
         <input type="text" class="form-control" id="os" name="os">
       </div>
-      <div class="form-group">
+      <!-- <div class="form-group">
         <label for="default_gateway">Default Gateway</label>
         <input type="text" class="form-control" id="default_gateway" name="default_gateway">
-      </div>
-      <div class="form-group">
+      </div> -->
+      <!-- <div class="form-group">
         <label for="parent_subnet">Parent Subnet</label>
         <select class="form-control" id="parent_subnet" name="parent_subnet" required>
           {% for subnet in subnets %}
           <option value="{{ subnet._id }}">{{ subnet.label }}</option>
           {% endfor %}
         </select>
+      </div> -->
+      <div class="form-group">
+        <label>Interfaces</label>
+        <div id="interface-list">
+          <div class="interface-entry mb-2 border rounded p-2">
+            <input class="form-control mb-1" name="ip_address" placeholder="IP Address" type="text" />
+            <input class="form-control mb-1" name="subnet" placeholder="Subnet ID" type="text" />
+            <input class="form-control mb-1" name="gateway" placeholder="Gateway (optional)" type="text" />
+            <button class="btn btn-sm btn-danger remove-btn" type="button">Remove</button>
+          </div>
+        </div>
+        <!-- Add button -->
+        <button type="button" class="btn btn-sm btn-secondary mt-2 add-interface-btn">Add Interface</button>
+        <input id="interfaces_json" name="interfaces_json" type="hidden" />
       </div>
       <button type="submit" class="btn btn-primary">Add Device Manually</button>
     </form>
@@ -70,4 +86,53 @@ device_honeypot,Honeypot,10.1.4.9,honeypot,Kali Rolling,10.1.4.1,subnet_public
     </pre>
   </div>
 </div>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"
+  integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+<script>
+  $(function () {
+    // Remove an interface entry
+    function removeInterface(btn) {
+      $(btn).closest(".interface-entry").remove();
+    }
+
+    // Add a new interface entry block
+    function addInterface() {
+      const entry = $(`
+        <div class="interface-entry mb-2 border rounded p-2">
+          <input type="text" name="ip_address" placeholder="IP Address" class="form-control mb-1" />
+          <input type="text" name="subnet" placeholder="Subnet ID" class="form-control mb-1" />
+          <input type="text" name="gateway" placeholder="Gateway (optional)" class="form-control mb-1" />
+          <button type="button" class="btn btn-sm btn-danger remove-btn">Remove</button>
+        </div>
+      `);
+      $("#interface-list").append(entry);
+    }
+
+    // Bind remove handler to dynamic "Remove" buttons
+    $(document).on("click", ".remove-btn", function () {
+      removeInterface(this);
+    });
+
+    // Bind add handler
+    $(document).on("click", ".add-interface-btn", function () {
+      addInterface();
+    });
+
+    // Serialize interfaces on form submit
+    $("form").on("submit", function () {
+      const result = [];
+      $(".interface-entry").each(function () {
+        const ip = $(this).find("[name='ip_address']").val();
+        const subnet = $(this).find("[name='subnet']").val();
+        const gateway = $(this).find("[name='gateway']").val();
+        if (ip) {
+          result.push({ ip_address: ip, subnet, gateway });
+        }
+      });
+      $("#interfaces_json").val(JSON.stringify(result));
+      console.log()
+    });
+  });
+</script>
+
 {% endblock %}

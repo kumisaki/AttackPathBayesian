@@ -18,15 +18,9 @@
       <div class="modal-body">
         <p><strong>ID:</strong> <span id="modalNodeId"></span></p>
         <p><strong>Label:</strong> <span id="modalNodeLabel"></span></p>
-        <div id="extraDeviceFields" style="display: none;">
-          <p><strong>IP Address:</strong> <span id="modalDeviceIp"></span></p>
-          <p><strong>Operating System:</strong> <span id="modalDeviceOs"></span></p>
-        </div>
-        <div id="extraVulnFields" style="display: none;">
-          <p><strong>Vulnerability ID:</strong> <span id="modalVulnId"></span></p>
-          <p><strong>Exploit Probability:</strong> <span id="modalVulnProb"></span></p>
-        </div>
+        <div id="modalNodeDetails"></div>
       </div>
+
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
       </div>
@@ -45,6 +39,13 @@
 
   // Get elements from backend
   let cyElements = {{ elements| tojson }};
+
+  function dynamic_color(ele) {
+    let p = ele.data('prob') || 0.0;
+    let r = Math.round(255 * p);
+    let g = Math.round(255 * (1 - p));
+    return 'rgb(' + r + ',' + g + ',0)';
+  }
 
   // Initialize Cytoscape with dagre layout
   var cy = cytoscape({
@@ -76,10 +77,15 @@
       {
         selector: 'node.subnet',
         style: {
-          'background-color': '#888',
+          'background-color': '#E0E0E0',
           'shape': 'roundrectangle',
-          'padding': '20px',
-          'compound-sizing-wrt-labels': 'exclude'
+          'padding-top': '30px',
+          'compound-sizing-wrt-labels': 'exclude',
+          'text-valign': 'top',
+          'text-halign': 'center',
+          'text-margin-y': '20px',  // pull label up a bit
+          'font-size': 12,
+
         }
       },
       {
@@ -94,14 +100,9 @@
       {
         selector: 'node.vuln',
         style: {
-          'background-color': function (ele) {
-            let p = ele.data('prob') || 0.0;
-            let r = Math.round(255 * p);
-            let g = Math.round(255 * (1 - p));
-            return 'rgb(' + r + ',' + g + ',0)';
-          },
-          'shape': 'ellipse',
-          'width': '40px',
+          'background-color': dynamic_color,
+          'shape': 'rectangle',
+          'width': '120px',
           'height': '40px'
         }
       }, {
@@ -109,8 +110,8 @@
         style: {
           'background-color': '#6f42c1',
           'shape': 'hexagon',
-          'width': '80px',
-          'height': '50px'
+          'width': '160px',
+          'height': '80px'
         }
       },
       {
@@ -118,18 +119,24 @@
         style: {
           'background-color': '#17a2b8',
           'shape': 'octagon',
-          'width': '80px',
-          'height': '50px'
+          'width': '160px',
+          'height': '80px'
         }
       },
       {
         selector: 'edge',
         style: {
-          'width': 2,
-          'line-color': '#bbb',
+          // 'label': 'data(label)',
+          'font-size': 10,
+          'text-background-color': '#fff',
+          'text-background-opacity': 1,
+          'text-background-shape': 'roundrectangle',
+          'color': '#17a2b8',
+          'text-margin-y': -10,
+          'line-color': '#17a2b8',
           'target-arrow-shape': 'triangle',
-          'target-arrow-color': '#bbb',
-          'curve-style': 'bezier'
+          'target-arrow-color': '#17a2b8',
+          'width': 2
         }
       },
       {
@@ -141,41 +148,53 @@
           'target-arrow-color': '#17a2b8',
           'width': 2
         }
+      },
+      {
+        selector: 'edge.vuln_edge',
+        style: {
+          'label': 'data(label)',
+          'font-size': 10,
+          'text-background-color': '#fff',
+          'text-background-opacity': 1,
+          'text-background-shape': 'roundrectangle',
+          'color': dynamic_color,
+          'text-margin-y': -10,
+          'line-color': dynamic_color,
+          'target-arrow-shape': 'triangle',
+          'target-arrow-color': dynamic_color,
+          'width': 2
+        }
       }
-
-
     ]
   });
 
   // Event listener: show modal with node details on click
   cy.on('tap', 'node', function (evt) {
     let node = evt.target;
-    let isDevice = node.hasClass('device');
-    let isVuln = node.hasClass('vuln');
-    let isSubnet = node.hasClass('subnet');
+    const data = node.data();
 
     document.getElementById('modalNodeId').textContent = node.id();
-    document.getElementById('modalNodeLabel').textContent = node.data('label') || '';
+    document.getElementById('modalNodeLabel').textContent = data.label || '';
 
-    // Hide all extra fields
-    document.getElementById('extraDeviceFields').style.display = 'none';
-    document.getElementById('extraVulnFields').style.display = 'none';
+    // Render all fields dynamically
+    let detailHTML = '';
 
-    if (isDevice) {
-      let ipVal = node.data('ip');
-      let osVal = node.data('os');
-      document.getElementById('modalDeviceIp').textContent = ipVal || '';
-      document.getElementById('modalDeviceOs').textContent = osVal || '';
-      document.getElementById('extraDeviceFields').style.display = 'block';
-    } else if (isVuln) {
-      let vId = node.data('vuln_id');
-      let p = node.data('prob') || 0.0;
-      document.getElementById('modalVulnId').textContent = vId;
-      document.getElementById('modalVulnProb').textContent = p.toFixed(2);
-      document.getElementById('extraVulnFields').style.display = 'block';
+    console.log(data)
+
+    for (const key in data) {
+      if (key !== 'id' && key !== 'label' && key !== 'parent') {
+        let value = data[key];
+        // Convert object/array to readable string
+        if (typeof value === 'object') {
+          value = JSON.stringify(value, null, 2);
+        }
+        detailHTML += `<p><strong>${key}:</strong> <span style="white-space:pre-wrap;">${value}</span></p>`;
+      }
     }
+    document.getElementById('modalNodeDetails').innerHTML = detailHTML;
 
     $('#nodeDetailModal').modal('show');
   });
+
 </script>
 {% endblock %}

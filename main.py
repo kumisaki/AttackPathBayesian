@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session
+from pymongo import MongoClient
 from extensions import get_project_db, project_admin, attack_reference
 from utils.init_reference import init_attack_reference
 from topology import topology_bp

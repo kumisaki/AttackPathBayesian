@@ -3,12 +3,14 @@
 <h2>Add Subnet</h2>
 <ul class="nav nav-tabs" id="subnetTab" role="tablist">
   <li class="nav-item">
-    <a class="nav-link active" id="manual-tab" data-toggle="tab" href="#manual" role="tab" aria-controls="manual" aria-selected="true">
+    <a class="nav-link active" id="manual-tab" data-toggle="tab" href="#manual" role="tab" aria-controls="manual"
+      aria-selected="true">
       Manual Add
     </a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="upload-tab" data-toggle="tab" href="#upload" role="tab" aria-controls="upload" aria-selected="false">
+    <a class="nav-link" id="upload-tab" data-toggle="tab" href="#upload" role="tab" aria-controls="upload"
+      aria-selected="false">
       Upload CSV
     </a>
   </li>
@@ -19,15 +21,29 @@
     <form method="POST" action="{{ url_for('topology_bp.add_subnet_manual') }}">
       <div class="form-group">
         <label for="subnet_id">Subnet ID</label>
-        <input type="text" class="form-control" id="subnet_id" name="subnet_id" required>
+        <input class="form-control" id="subnet_id" name="subnet_id" required="" type="text" />
       </div>
       <div class="form-group">
         <label for="label">Label</label>
-        <input type="text" class="form-control" id="label" name="label" required>
+        <input class="form-control" id="label" name="label" required="" type="text" />
       </div>
       <div class="form-group">
-        <label for="connected_subnets">Connected Subnets (comma-separated)</label>
-        <input type="text" class="form-control" id="connected_subnets" name="connected_subnets">
+        <label for="cidr">CIDR Notation</label>
+        <input class="form-control" id="cidr" name="cidr" placeholder="e.g., 192.168.1.0/24" type="text" />
+        <small id="cidr-error" class="form-text text-danger d-none">Invalid CIDR format. Please use e.g.,
+          192.168.1.0/24</small>
+      </div>
+      <div class="form-group">
+        <label for="zone">Zone (optional)</label>
+        <input class="form-control" id="zone" name="zone" placeholder="e.g., DMZ, IT, OT" type="text" />
+      </div>
+      <div class="form-group">
+        <label for="vlan_id">VLAN ID (optional)</label>
+        <input class="form-control" id="vlan_id" name="vlan_id" placeholder="e.g., 101" type="number" />
+      </div>
+      <div class="form-group">
+        <label for="note">Note (optional)</label>
+        <textarea class="form-control" id="note" name="note" placeholder="Any extra description..." rows="2"></textarea>
       </div>
       <button type="submit" class="btn btn-primary">Add Subnet Manually</button>
     </form>
@@ -44,10 +60,26 @@
     <hr>
     <p class="text-muted">CSV Example (first row as header):</p>
     <pre>
-subnet_id,label,connected_subnets
-subnet_public,"Public (10.1.4.0/24)","subnet_private"
-subnet_private,"Private (10.1.5.0/24)","subnet_public"
+
     </pre>
   </div>
 </div>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"
+integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+<script>
+  $(document).ready(function () {
+    $("form").on("submit", function (e) {
+      const cidr = $("#cidr").val().trim();
+      const isValid = /^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/.test(cidr);
+
+      if (cidr && !isValid) {
+        $("#cidr-error").removeClass("d-none");
+        e.preventDefault();
+      } else {
+        $("#cidr-error").addClass("d-none");
+      }
+    });
+  });
+
+</script>
 {% endblock %}
