@@ -49,6 +49,23 @@
                     </div>
                 </li>
             </ul>
+            <!-- Project dropdown (right aligned) -->
+            <ul class="navbar-nav ml-auto">
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="projectDropdown" role="button"
+                        data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        Project: {{ current_project_name }}
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-right" aria-labelledby="projectDropdown">
+                        {% for project in available_projects %}
+                        <a class="dropdown-item {% if project.db == current_project_db %}active{% endif %}"
+                            href="{{ url_for('set_project', project_id=project.db) }}">
+                            {{ project.name }}
+                        </a>
+                        {% endfor %}
+                    </div>
+                </li>
+            </ul>
         </div>
     </nav>
     <div class="container mt-4">

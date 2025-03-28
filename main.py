@@ -67,7 +67,28 @@ def create_app():
         flash(f"Project '{name}' created!", "success")
         return redirect(url_for("index"))
 
+    @app.route('/set_project/<project_id>')
+    def set_project(project_id):
+        print(project_id)
+        session['project_db'] = project_id
+        return redirect(request.referrer or url_for('index'))
+    
+    @app.context_processor
+    def inject_project_context():
+        return get_project_context()
+
     return app
+
+def get_project_context():
+    current_db = session.get("project_db")
+    project_doc = get_project_db("project_admin").projects.find_one({"db": current_db})
+    return {
+        "current_project_name": project_doc.get("name", current_db),
+        "current_project_db": current_db,
+        "available_projects": list(
+            get_project_db("project_admin").projects.find({}, {"name": 1, "db": 1})
+        )
+    }
 
 if __name__ == "__main__":
     app = create_app()
