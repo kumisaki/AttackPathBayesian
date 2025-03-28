@@ -1,3 +1,6 @@
 Flask==2.2.3
 flask_pymongo==2.3.0
 pymongo==3.12.3
+Jinja2
+Cytoscape
+Werkzeug
