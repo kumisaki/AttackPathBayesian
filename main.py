@@ -82,8 +82,9 @@ def create_app():
 def get_project_context():
     current_db = session.get("project_db")
     project_doc = get_project_db("project_admin").projects.find_one({"db": current_db})
+    print(current_db, project_doc)
     return {
-        "current_project_name": project_doc.get("name", current_db),
+        "current_project_name": project_doc["name"] if project_doc else "(No project selected)",
         "current_project_db": current_db,
         "available_projects": list(
             get_project_db("project_admin").projects.find({}, {"name": 1, "db": 1})
