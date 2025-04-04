@@ -9,18 +9,23 @@
   <div class="card">
     <div class="card-header" id="heading{{ subnet._id | replace(' ', '_') }}">
       <h2 class="mb-0 d-flex justify-content-between align-items-center">
-        <button class="btn btn-link text-left" type="button" data-toggle="collapse" data-target="#collapse{{ subnet._id | replace(' ', '_') }}" aria-expanded="true" aria-controls="collapse{{ subnet._id | replace(' ', '_') }}">
+        <button class="btn btn-link text-left" type="button" data-toggle="collapse"
+          data-target="#collapse{{ subnet._id | replace(' ', '_') }}" aria-expanded="true"
+          aria-controls="collapse{{ subnet._id | replace(' ', '_') }}">
           <!-- {{ subnet._id }} -  -->
           {{ subnet.label }}
-           <!-- | Connected: {{ subnet.connected_subnets | join(', ') }} -->
+          <!-- | Connected: {{ subnet.connected_subnets | join(', ') }} -->
         </button>
         <div>
-          <a href="{{ url_for('topology_bp.edit_subnet', subnet_id=subnet._id) }}" class="btn btn-sm btn-info" onclick="event.stopPropagation();">Edit</a>
-          <a href="{{ url_for('topology_bp.delete_subnet', subnet_id=subnet._id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Confirm to delete this subnet?');">Delete</a>
+          <a href="{{ url_for('topology_bp.edit_subnet', subnet_id=subnet._id) }}" class="btn btn-sm btn-info"
+            onclick="event.stopPropagation();">Edit</a>
+          <a href="{{ url_for('topology_bp.delete_subnet', subnet_id=subnet._id) }}" class="btn btn-sm btn-danger"
+            onclick="return confirm('Confirm to delete this subnet?');">Delete</a>
         </div>
       </h2>
     </div>
-    <div id="collapse{{ subnet._id | replace(' ', '_') }}" class="collapse show" aria-labelledby="heading{{ subnet._id | replace(' ', '_') }}" data-parent="#accordionTop">
+    <div id="collapse{{ subnet._id | replace(' ', '_') }}" class="collapse show"
+      aria-labelledby="heading{{ subnet._id | replace(' ', '_') }}" data-parent="#accordionTop">
       <div class="card-body">
         {% if device_map[subnet._id] is defined %}
         <table class="table table-sm table-bordered">
@@ -39,30 +44,40 @@
             {% for device in device_map[subnet._id] %}
             <tr>
               <td>{{ device._id }}</td>
-              <td>{{ device.label }}</td>
+              <td>
+                {{ device.label }}
+                {% if device.slave_of %}
+                <span class="text-muted" style="font-size: 0.85em;">
+                  (connected to {{ master_labels[device.slave_of]+' ['+ device.slave_of +']' or device.slave_of }})
+                </span>
+                {% endif %}
+              </td>
               <td>
                 {% for iface in device.interfaces %}
-                  <div>{{ iface.ip_address }}</div>
+                <div>{{ iface.ip_address or '-' }}</div>
                 {% endfor %}
               </td>
               <td>{{ device.device_type }}</td>
               <td>{{ device.os }}</td>
               <td>
                 {% for iface in device.interfaces %}
-                  <div>{{ iface.gateway or '—' }}</div>
+                <div>{{ iface.gateway or '-' }}</div>
                 {% endfor %}
               </td>
               <td>
-                <a href="{{ url_for('topology_bp.edit_device', device_id=device._id) }}" class="btn btn-sm btn-info">Edit Device</a>
-                <a href="{{ url_for('topology_bp.delete_device', device_id=device._id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Confirm to delete this device?');">Delete</a>
+                <a href="{{ url_for('topology_bp.edit_device', device_id=device._id) }}"
+                  class="btn btn-sm btn-info">Edit Device</a>
+                <a href="{{ url_for('topology_bp.delete_device', device_id=device._id) }}" class="btn btn-sm btn-danger"
+                  onclick="return confirm('Confirm to delete this device?');">Delete</a>
               </td>
             </tr>
             {% endfor %}
           </tbody>
-          
+
+
         </table>
         {% else %}
-          <p>No devices found for this subnet.</p>
+        <p>No devices found for this subnet.</p>
         {% endif %}
       </div>
     </div>

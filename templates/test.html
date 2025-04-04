@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Interface Test</title>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+
+<form>
+  <!-- Interface Type -->
+  <label for="interface_type">Interface Type</label>
+  <select id="interface_type" name="interface_type">
+    <option value="TCP/IP">TCP/IP</option>
+    <option value="Serial">Serial</option>
+    <option value="Analog">Analog</option>
+  </select>
+
+  <!-- Dynamic fields -->
+  <div>
+    <label id="ip_label" for="interface_field_1">IP Address</label>
+    <input id="interface_field_1" name="ip_address" type="text">
+  </div>
+  <div>
+    <label id="subnet_label" for="interface_field_2">Subnet ID</label>
+    <input id="interface_field_2" name="subnet" type="text">
+  </div>
+  <div>
+    <label id="gateway_label" for="interface_field_3">Gateway</label>
+    <input id="interface_field_3" name="gateway" type="text">
+  </div>
+</form>
+
+<script>
+  function updateInterfaceFields() {
+    const type = $('#interface_type').val();
+    console.log("Selected type:", type);
+
+    if (type === 'TCP/IP') {
+      $('#ip_label').text('IP Address');
+      $('#subnet_label').text('Subnet ID');
+      $('#gateway_label').text('Gateway');
+
+      $('#interface_field_1').attr('name', 'ip_address');
+      $('#interface_field_2').attr('name', 'subnet');
+      $('#interface_field_3').attr('name', 'gateway');
+    } else {
+      $('#ip_label').text('Address');
+      $('#subnet_label').text('Connected To');
+      $('#gateway_label').text('Access Point');
+
+      $('#interface_field_1').attr('name', 'address');
+      $('#interface_field_2').attr('name', 'connected_to');
+      $('#interface_field_3').attr('name', 'access_point');
+    }
+
+    // Debug print the names to verify:
+    console.log("New names:",
+      $('#interface_field_1').attr('name'),
+      $('#interface_field_2').attr('name'),
+      $('#interface_field_3').attr('name')
+    );
+  }
+
+  $(document).ready(function () {
+    updateInterfaceFields(); // initial
+    $('#interface_type').on('change', updateInterfaceFields); // on change
+  });
+</script>
+
+</body>
+</html>

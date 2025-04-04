@@ -40,7 +40,7 @@ def complex_attack_path():
     subnet_ids = {str(s["_id"]): s for s in subnets}
     device_ids = {str(d["_id"]): d for d in devices}
 
-    # 1️⃣ Add subnet nodes (containers)
+    # 1️ Add subnet nodes (containers)
     for s in subnets:
         sid = str(s["_id"])
         cidr = s.get("cidr", "")
@@ -55,35 +55,52 @@ def complex_attack_path():
             "classes": "subnet"
         })
 
-    # 2️⃣ Map each device to the set of connected subnets
+    # 2️ Map each device to the set of connected subnets
     device_subnets = {}
+    device_connected_to = {}
     for d in devices:
-        subnets_used = {
-            iface.get("subnet") for iface in d.get("interfaces", [])
-            if iface.get("subnet") in subnet_ids
-        }
+        subnets_used = set()
+        for iface in d.get("interfaces", []):
+            if iface.get("interface_type") == "TCP/IP":
+                if iface.get("subnet") in subnet_ids:
+                    subnets_used.add(iface["subnet"])
+            else:
+                target_id = iface.get("connected_to")
+                if target_id and target_id in device_ids:
+                    # Don't use inferred subnet anymore
+                    device_connected_to[d["_id"]] = target_id
         device_subnets[d["_id"]] = list(subnets_used)
 
-    # 3️⃣ Add device nodes
+    # 3️ Add device nodes
     for d in devices:
         did = str(d["_id"])
         connected_subnets = device_subnets.get(did, [])
-
         node_data = {
             "id": did,
             "label": d.get("label", did)
         }
 
-        # If only one subnet, nest device inside that subnet
-        if len(connected_subnets) == 1:
-            node_data["parent"] = connected_subnets[0]
+        if len(connected_subnets) == 1 and did not in device_connected_to:
+            node_data["parent"] = connected_subnets[0]  # only if not a No-TCP/IP dependent
 
         elements.append({
             "data": node_data,
             "classes": "device"
         })
 
-    # 4️⃣ Add device → subnet edges
+    # 4 Add device->device (No-TCP/IP to TCP/IP)
+    for child_id, parent_id in device_connected_to.items():
+        if parent_id in device_ids:
+            elements.append({
+                "data": {
+                    "id": f"{child_id}_to_{parent_id}",
+                    "source": child_id,
+                    "target": parent_id
+                },
+                "classes": "connection"
+            })
+
+    # 4 Add device → subnet edges
     for d in devices:
         did = str(d["_id"])
         for iface in d.get("interfaces", []):
