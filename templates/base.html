@@ -23,10 +23,10 @@
                     <a class="nav-link dropdown-toggle" href="#" id="analysisDropdown" role="button"
                         data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Analysis</a>
                     <div class="dropdown-menu" aria-labelledby="analysisDropdown">
-                        <a class="dropdown-item" href="{{ url_for('analysis_bp.complex_attack_path') }}">Attack Path
-                            Graph</a>
+                        <a class="dropdown-item" href="{{ url_for('analysis_bp.analysis_topology_graph_page') }}">Attack Path Graph</a>
+                        <a class="dropdown-item" href="{{ url_for('analysis_bp.bayesian_attack_graph_page') }}">Bayesian Attack Graph</a>
                     </div>
-                </li>
+                  </li>
                 <!-- Topology -->
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="topologyDropdown" role="button"

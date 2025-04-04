@@ -1,7 +1,10 @@
 # analysis.py
-from flask import Blueprint, render_template, session
+from flask import Blueprint, render_template, session, request, jsonify
 from extensions import get_project_db, attack_reference
 from collections import defaultdict
+from pgmpy.models import DiscreteBayesianNetwork
+from pgmpy.factors.discrete import TabularCPD
+from pgmpy.inference import VariableElimination
 
 analysis_bp = Blueprint("analysis_bp", __name__)
 
@@ -24,8 +27,13 @@ def load_technique_to_tactic():
     mappings = list(attack_reference.techniques_to_tactics.find({}))
     return {m["technique_id"]: m["tactic_id"] for m in mappings if "technique_id" in m and "tactic_id" in m}
 
-@analysis_bp.route('/complex_attack_path')
-def complex_attack_path():
+@analysis_bp.route('/analysis_topology_graph_page')
+def analysis_topology_graph_page():
+    print('what the fuck')
+    return render_template("analysis_topology_graph.html")
+
+@analysis_bp.route('/analysis_topology_graph')
+def analysis_topology_graph():
     subnets = load_subnets()
     devices = load_devices()
     vulns = load_vulnerabilities()
@@ -180,4 +188,85 @@ def complex_attack_path():
                     "classes": "tactic_edge"
                 })
 
-    return render_template("analysis_complex_path.html", elements=elements)
+    return jsonify({"elements": elements})
+
+@analysis_bp.route('/bayesian_attack_graph_page')
+def bayesian_attack_graph_page():
+    return render_template("bayesian_attack_graph.html")
+
+@analysis_bp.route('/bayesian_attack_graph')
+def bayesian_attack_graph():
+    global bn_model_cache
+    devices = load_devices()
+    vulns = load_vulnerabilities()
+
+    vulnerability_map = defaultdict(list)
+    for v in vulns:
+        for dev_id in v.get("device_ids", []):
+            if tid := v.get("technique_id"):
+                vulnerability_map[dev_id].append({"tech_id": tid})
+
+    topology = defaultdict(list)
+    for d in devices:
+        did = d["_id"]
+        for iface in d.get("interfaces", []):
+            if iface.get("interface_type") != "TCP/IP":
+                if target := iface.get("connected_to"):
+                    topology[did].append(target)
+
+    edges = []
+    for d in devices:
+        did = d["_id"]
+        for vuln in vulnerability_map.get(did, []):
+            tid = vuln["tech_id"]
+            edges.append((f"compromised:{did}", f"technique:{tid}"))
+            for target_id in topology.get(did, []):
+                edges.append((f"technique:{tid}", f"compromised:{target_id}"))
+
+    model = DiscreteBayesianNetwork(edges)
+
+    for node in model.nodes:
+        parents = list(model.get_parents(node))
+        if not parents:
+            cpd = TabularCPD(node, 2, [[0.05], [0.95]])
+        else:
+            num_parents = len(parents)
+            card = [2] * num_parents
+            rows = [[0.7] * (2**num_parents), [0.3] * (2**num_parents)]
+            cpd = TabularCPD(node, 2, rows, evidence=parents, evidence_card=card)
+        model.add_cpds(cpd)
+
+    model.check_model()
+    bn_model_cache = model  # store for inference
+    session["attack_graph"] = {
+        "nodes": list(model.nodes),
+        "edges": list(model.edges)
+    }
+    return jsonify({
+        "nodes": list(model.nodes),
+        "edges": list(model.edges)
+    })
+
+@analysis_bp.route('/infer_probability')
+def infer_probability():
+    global bn_model_cache
+    if not bn_model_cache:
+        return jsonify({"error": "Model not ready"}), 400
+    node = request.args.get("observe")
+    if not node:
+        return jsonify({"error": "Missing observe param"}), 400
+
+    try:
+        infer = VariableElimination(bn_model_cache)
+        evidence = {node: 1}  # observed as true
+        result = {}
+        for n in bn_model_cache.nodes:
+            q = infer.query(variables=[n], evidence=evidence, show_progress=False)
+            prob = q.values[1] if hasattr(q, 'values') else 0
+            result[n] = float(round(prob, 3))
+        return jsonify({
+        "probabilities": result,
+        "highlight": sorted((k for k, v in result.items() if v > 0.5), key=lambda x: -result[x])
+    })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

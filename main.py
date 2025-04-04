@@ -69,7 +69,6 @@ def create_app():
 
     @app.route('/set_project/<project_id>')
     def set_project(project_id):
-        print(project_id)
         session['project_db'] = project_id
         return redirect(request.referrer or url_for('index'))
     
@@ -82,7 +81,7 @@ def create_app():
 def get_project_context():
     current_db = session.get("project_db")
     project_doc = get_project_db("project_admin").projects.find_one({"db": current_db})
-    print(current_db, project_doc)
+    # print(current_db, project_doc)
     return {
         "current_project_name": project_doc["name"] if project_doc else "(No project selected)",
         "current_project_db": current_db,

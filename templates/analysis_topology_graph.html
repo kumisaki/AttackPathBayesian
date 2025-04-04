@@ -1,7 +1,7 @@
-<!-- templates/analysis_complex_path.html -->
+<!-- templates/analysis_topology_graph_page.html -->
 {% extends "base.html" %}
 {% block content %}
-<!-- <h2>Attack Path: Subnets → Devices (Rectangles) → Vulnerabilities (Circles)</h2> -->
+<h2>Topology Graph</h2>
 <div id="cy" style="width: 100%; height: 700px; border: 1px solid #aaa;"></div>
 
 <!-- Bootstrap Modal for showing node details -->
@@ -29,8 +29,10 @@
 </div>
 
 <!-- Load Cytoscape and dagre plugin from CDN -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
 <script src="https://unpkg.com/dagre/dist/dagre.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://unpkg.com/cytoscape-dagre/cytoscape-dagre.js"></script>
 
 <script>
@@ -38,7 +40,22 @@
   cytoscape.use(cytoscapeDagre);
 
   // Get elements from backend
-  let cyElements = {{ elements| tojson }};
+
+  let cyElements = [];
+
+  $.getJSON('/analysis/analysis_topology_graph', function (data) {
+    cyElements = data.elements;
+    cy.json({ elements: cyElements });
+    cy.layout({
+      name: 'dagre',
+      nodeSep: 100,
+      edgeSep: 80,
+      rankSep: 120,
+      rankDir: 'TB',
+      padding: 30
+    }).run();
+  });
+
 
   function dynamic_color(ele) {
     let p = ele.data('prob') || 0.0;

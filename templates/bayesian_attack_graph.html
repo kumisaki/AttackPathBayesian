@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Bayesian Attack Graph</h2> 
+<div class="input-group mb-3" style="max-width: 500px;">
+  <input type="text" id="evidenceNode" class="form-control" placeholder="Node ID (e.g., compromised:valve)">
+  <div class="input-group-append">
+    <button class="btn btn-info" type="button" onclick="runInference()">Infer Cause</button>
+  </div>
+</div>
+
+<div id="cy" style="width: 100%; height: 700px; border: 1px solid #aaa;"></div>
+
+<!-- Modal for node details -->
+<div class="modal fade" id="nodeDetailModal" tabindex="-1" role="dialog" aria-labelledby="nodeDetailModalTitle"
+  aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="nodeDetailModalTitle">Node Details</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span>&times;</span></button>
+      </div>
+      <div class="modal-body">
+        <p><strong>ID:</strong> <span id="modalNodeId"></span></p>
+        <p><strong>Label:</strong> <span id="modalNodeLabel"></span></p>
+        <div id="modalNodeDetails"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
+<script src="https://unpkg.com/dagre/dist/dagre.min.js"></script>
+<script src="https://unpkg.com/cytoscape-dagre/cytoscape-dagre.js"></script>
+
+<script>
+  cytoscape.use(cytoscapeDagre);
+  let cy = null;
+
+  async function loadBayesianGraph() {
+    const res = await fetch('/analysis/bayesian_attack_graph');
+    const data = await res.json();
+    const elements = [];
+    for (let id of data.nodes) {
+      elements.push({
+        data: {
+          id,
+          label: id.split(':')[1],
+          type: id.includes('technique') ? 'technique' : 'device'
+        }
+      });
+    }
+    for (let [src, tgt] of data.edges) {
+      elements.push({ data: { source: src, target: tgt } });
+    }
+
+    cy = cytoscape({
+      container: document.getElementById('cy'),
+      elements,
+      layout: { name: 'dagre' },
+      style: [
+        {
+          selector: 'node',
+          style: {
+            'label': 'data(label)',
+            'text-valign': 'center',
+            'text-halign': 'center',
+            'color': '#fff',
+            'background-color': ele => ele.data('type') === 'technique' ? '#6f42c1' : '#337ab7',
+            'border-color': '#000',
+            'border-width': 2
+          }
+        },
+        {
+          selector: 'edge',
+          style: {
+            'width': 2,
+            'line-color': '#999',
+            'target-arrow-shape': 'triangle',
+            'target-arrow-color': '#999'
+          }
+        }
+      ]
+    });
+
+    cy.on('tap', 'node', function (evt) {
+      const data = evt.target.data();
+      document.getElementById('modalNodeId').textContent = data.id;
+      document.getElementById('modalNodeLabel').textContent = data.label || '';
+      document.getElementById('modalNodeDetails').innerHTML = Object.entries(data)
+        .filter(([k]) => k !== 'id' && k !== 'label')
+        .map(([k, v]) => `<p><strong>${k}:</strong> ${v}</p>`).join('');
+      $('#nodeDetailModal').modal('show');
+    });
+  }
+
+  async function runInference() {
+    const nodeId = document.getElementById('evidenceNode').value.trim();
+    if (!nodeId) return alert('Please enter a node ID.');
+
+    const res = await fetch(`/infer_probability?observe=${nodeId}`);
+    const data = await res.json();
+    const probs = data.probabilities || {};
+    const highlight = new Set(data.highlight || []);
+
+    if (!cy) return;
+
+    cy.nodes().forEach(n => {
+      const id = n.id();
+      const p = probs[id] || 0;
+      const red = Math.round(255 * p);
+      const green = Math.round(255 * (1 - p));
+      n.style('background-color', `rgb(${red},${green},0)`);
+      n.style('border-width', highlight.has(id) ? 5 : 2);
+      const baseLabel = id.split(':')[1];
+      n.data('label', `${baseLabel} (${Math.round(p * 100)}%)`);
+    });
+  }
+
+  loadBayesianGraph();
+</script>
+{% endblock %}
