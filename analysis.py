@@ -29,7 +29,6 @@ def load_technique_to_tactic():
 
 @analysis_bp.route('/analysis_topology_graph_page')
 def analysis_topology_graph_page():
-    print('what the fuck')
     return render_template("analysis_topology_graph.html")
 
 @analysis_bp.route('/analysis_topology_graph')
@@ -197,54 +196,107 @@ def bayesian_attack_graph_page():
 @analysis_bp.route('/bayesian_attack_graph')
 def bayesian_attack_graph():
     global bn_model_cache
+
     devices = load_devices()
     vulns = load_vulnerabilities()
 
+    # 设备 → 技术 映射
     vulnerability_map = defaultdict(list)
     for v in vulns:
-        for dev_id in v.get("device_ids", []):
-            if tid := v.get("technique_id"):
+        dev_id = v.get("parent_device_id")
+        if dev_id:
+            for tid in v.get("attack_techniques", []):
                 vulnerability_map[dev_id].append({"tech_id": tid})
 
-    topology = defaultdict(list)
+    # 构建 subnet → device 映射
+    subnet_map = defaultdict(list)
     for d in devices:
         did = d["_id"]
         for iface in d.get("interfaces", []):
-            if iface.get("interface_type") != "TCP/IP":
-                if target := iface.get("connected_to"):
-                    topology[did].append(target)
+            if subnet := iface.get("subnet"):
+                subnet_map[subnet].append(did)
 
-    edges = []
+    # 拓扑结构（连接关系 + 同 subnet）
+    topology = defaultdict(set)
+    for d in devices:
+        did = d["_id"]
+        for iface in d.get("interfaces", []):
+            if target := iface.get("connected_to"):
+                topology[did].add(target)
+
+    for device_ids in subnet_map.values():
+        for i in range(len(device_ids)):
+            for j in range(len(device_ids)):
+                if i != j:
+                    topology[device_ids[i]].add(device_ids[j])
+
+    # ✅ 使用临时图防止循环
+    import networkx as nx
+    G_temp = nx.DiGraph()
+    final_edges = []
+
     for d in devices:
         did = d["_id"]
         for vuln in vulnerability_map.get(did, []):
             tid = vuln["tech_id"]
-            edges.append((f"compromised:{did}", f"technique:{tid}"))
-            for target_id in topology.get(did, []):
-                edges.append((f"technique:{tid}", f"compromised:{target_id}"))
+            edge_1 = (f"compromised:{did}", f"technique:{tid}")
 
-    model = DiscreteBayesianNetwork(edges)
+            G_temp.add_edge(*edge_1)
+            if not nx.is_directed_acyclic_graph(G_temp):
+                G_temp.remove_edge(*edge_1)
+            else:
+                final_edges.append(edge_1)
+
+            for target_id in topology.get(did, []):
+                edge_2 = (f"technique:{tid}", f"compromised:{target_id}")
+                G_temp.add_edge(*edge_2)
+                if not nx.is_directed_acyclic_graph(G_temp):
+                    G_temp.remove_edge(*edge_2)
+                else:
+                    final_edges.append(edge_2)
+
+    # 建立贝叶斯网络
+    from pgmpy.models import DiscreteBayesianNetwork
+    from pgmpy.factors.discrete import TabularCPD
+
+    model = DiscreteBayesianNetwork(final_edges)
 
     for node in model.nodes:
         parents = list(model.get_parents(node))
         if not parents:
             cpd = TabularCPD(node, 2, [[0.05], [0.95]])
         else:
-            num_parents = len(parents)
-            card = [2] * num_parents
-            rows = [[0.7] * (2**num_parents), [0.3] * (2**num_parents)]
-            cpd = TabularCPD(node, 2, rows, evidence=parents, evidence_card=card)
+            card = [2] * len(parents)
+            prob_true = [0.7] * (2 ** len(parents))
+            prob_false = [0.3] * (2 ** len(parents))
+            cpd = TabularCPD(node, 2, [prob_true, prob_false], evidence=parents, evidence_card=card)
         model.add_cpds(cpd)
 
     model.check_model()
-    bn_model_cache = model  # store for inference
+    bn_model_cache = model
+
+    # Collect edge probabilities for front-end
+    edge_prob_map = {}
+    for edge in model.edges:
+        parent, child = edge
+        try:
+            cpd = model.get_cpds(child)
+            if parent in cpd.variables:
+                idx = cpd.variables.index(parent)
+                prob = cpd.get_values()[0]  # Prob(true)
+                edge_prob_map[edge] = round(prob[0], 3) if isinstance(prob, list) else round(float(prob), 3)
+        except:
+            edge_prob_map[edge] = 0.7  # fallback
+
     session["attack_graph"] = {
         "nodes": list(model.nodes),
         "edges": list(model.edges)
     }
+
     return jsonify({
         "nodes": list(model.nodes),
-        "edges": list(model.edges)
+        "edges": list(model.edges),
+        "edge_probs": {f"{src}→{tgt}": prob for (src, tgt), prob in edge_prob_map.items()}
     })
 
 @analysis_bp.route('/infer_probability')

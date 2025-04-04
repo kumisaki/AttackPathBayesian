@@ -40,6 +40,8 @@
     const res = await fetch('/analysis/bayesian_attack_graph');
     const data = await res.json();
     const elements = [];
+    const edgeProbMap = data.edge_probs || {};
+
     for (let id of data.nodes) {
       elements.push({
         data: {
@@ -50,7 +52,14 @@
       });
     }
     for (let [src, tgt] of data.edges) {
-      elements.push({ data: { source: src, target: tgt } });
+      const prob = edgeProbMap[`${src}→${tgt}`] ?? '';
+      elements.push({
+        data: {
+          source: src,
+          target: tgt,
+          label: prob ? `${prob}` : ''
+        }
+      });
     }
 
     cy = cytoscape({
@@ -67,16 +76,23 @@
             'color': '#fff',
             'background-color': ele => ele.data('type') === 'technique' ? '#6f42c1' : '#337ab7',
             'border-color': '#000',
-            'border-width': 2
+            'border-width': 2,
+            'width': 50
           }
         },
         {
           selector: 'edge',
           style: {
-            'width': 2,
-            'line-color': '#999',
+            'label': 'data(label)',
+            'font-size': 10,
+            'text-background-color': '#fff',
+            'text-background-opacity': 1,
+            'text-background-shape': 'roundrectangle',
+            'color': '#17a2b8',
+            'line-color': '#17a2b8',
             'target-arrow-shape': 'triangle',
-            'target-arrow-color': '#999'
+            'target-arrow-color': '#17a2b8',
+            'width': 2
           }
         }
       ]
