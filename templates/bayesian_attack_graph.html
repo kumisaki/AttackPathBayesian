@@ -1,12 +1,18 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Bayesian Attack Graph</h2> 
-<div class="input-group mb-3" style="max-width: 500px;">
+<h2>Bayesian Attack Graph</h2>
+<!-- <div class="input-group mb-3" style="max-width: 500px;">
   <input type="text" id="evidenceNode" class="form-control" placeholder="Node ID (e.g., compromised:valve)">
   <div class="input-group-append">
     <button class="btn btn-info" type="button" onclick="runInference()">Infer Cause</button>
   </div>
+</div> -->
+
+<div class="form-inline mb-3">
+  <select id="observe-node" class="form-control" style="width: 300px;"></select>
+  <button class="btn btn-info ml-2" onclick="runInference()">Infer Cause</button>
 </div>
+
 
 <div id="cy" style="width: 100%; height: 700px; border: 1px solid #aaa;"></div>
 
@@ -31,7 +37,33 @@
 <script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
 <script src="https://unpkg.com/dagre/dist/dagre.min.js"></script>
 <script src="https://unpkg.com/cytoscape-dagre/cytoscape-dagre.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"
+  integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
+<script>
+  $(document).ready(function () {
+    $('#observe-node').select2({
+      placeholder: 'Search node to observe...',
+      minimumInputLength: 1,
+      ajax: {
+        url: '/analysis/node_search',
+        dataType: 'json',
+        delay: 250,
+        data: function (params) {
+          return { q: params.term };
+        },
+        processResults: function (data) {
+          return {
+            results: data.map(id => ({ id, text: id }))
+          };
+        },
+        cache: true
+      }
+    });
+  });
+
+</script>
 <script>
   cytoscape.use(cytoscapeDagre);
   let cy = null;
@@ -76,8 +108,9 @@
             'color': '#fff',
             'background-color': ele => ele.data('type') === 'technique' ? '#6f42c1' : '#337ab7',
             'border-color': '#000',
-            'border-width': 2,
-            'width': 50
+            'border-width': 1,
+            'width': 140,
+            'height': 50
           }
         },
         {
@@ -92,7 +125,7 @@
             'line-color': '#17a2b8',
             'target-arrow-shape': 'triangle',
             'target-arrow-color': '#17a2b8',
-            'width': 2
+            'width': 1
           }
         }
       ]
@@ -100,21 +133,48 @@
 
     cy.on('tap', 'node', function (evt) {
       const data = evt.target.data();
-      document.getElementById('modalNodeId').textContent = data.id;
-      document.getElementById('modalNodeLabel').textContent = data.label || '';
-      document.getElementById('modalNodeDetails').innerHTML = Object.entries(data)
-        .filter(([k]) => k !== 'id' && k !== 'label')
-        .map(([k, v]) => `<p><strong>${k}:</strong> ${v}</p>`).join('');
+      const nodeId = data.id;
+
+      $('#modalNodeId').text(nodeId);
+      $('#modalNodeLabel').text(data.label || '');
+      // $('#modalNodeDetails').html('<p>Loading CPD...</p>');
+
+      // $.get(`/analysis/get_cpd/${nodeId}`, function (cpd) {
+      //   if (cpd.error) {
+      //     $('#modalNodeDetails').html(`<p class="text-danger">CPD Error: ${cpd.error}</p>`);
+      //   } else {
+      //     let html = `<strong>CPD Table:</strong><br><table class="table table-sm table-bordered"><thead><tr>`;
+      //     cpd.variables.slice(1).forEach(v => html += `<th>${v}</th>`);
+      //     html += `<th>P(True)</th></tr></thead><tbody>`;
+
+      //     const valRows = cpd.values[0];
+      //     const parentCount = cpd.variables.length - 1;
+
+      //     for (let i = 0; i < valRows.length; i++) {
+      //       html += '<tr>';
+      //       const bits = i.toString(2).padStart(parentCount, '0');
+      //       for (const b of bits) html += `<td>${b}</td>`;
+      //       html += `<td>${(valRows[i] * 100).toFixed(2)}%</td></tr>`;
+      //     }
+      //     html += '</tbody></table>';
+
+      //     $('#modalNodeDetails').html(html);
+      //   }
+      // });
+
       $('#nodeDetailModal').modal('show');
     });
+
   }
 
   async function runInference() {
-    const nodeId = document.getElementById('evidenceNode').value.trim();
-    if (!nodeId) return alert('Please enter a node ID.');
+    const nodeId = $('#observe-node').val();
+    if (!nodeId) return alert('Please select a node');
 
-    const res = await fetch(`/infer_probability?observe=${nodeId}`);
+    const res = await fetch(`/analysis/infer_probability?observe=${encodeURIComponent(nodeId)}`);
     const data = await res.json();
+    if (data.error) return alert(data.error);
+
     const probs = data.probabilities || {};
     const highlight = new Set(data.highlight || []);
 
@@ -126,10 +186,28 @@
       const red = Math.round(255 * p);
       const green = Math.round(255 * (1 - p));
       n.style('background-color', `rgb(${red},${green},0)`);
-      n.style('border-width', highlight.has(id) ? 5 : 2);
+      n.style('border-width', highlight.has(id) ? 2 : 1);
       const baseLabel = id.split(':')[1];
       n.data('label', `${baseLabel} (${Math.round(p * 100)}%)`);
     });
+
+    cy.edges().forEach(e => {
+      const srcId = e.source().id();
+      const tgtId = e.target().id();
+      const probSrc = probs[srcId] || 0;
+      const probTgt = probs[tgtId] || 0;
+      const edgeProb = Math.max(probSrc, probTgt);  // 或者平均值
+
+      const red = Math.round(255 * edgeProb);
+      const green = Math.round(255 * (1 - edgeProb));
+      const color = `rgb(${red},${green},0)`;
+
+      e.style('line-color', color);
+      e.style('target-arrow-color', color);
+      e.style('color', color);  // 边 label 字体颜色
+      e.data('label', `${Math.round(edgeProb * 100)}%`);
+    });
+
   }
 
   loadBayesianGraph();
