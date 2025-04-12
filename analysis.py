@@ -232,7 +232,7 @@ def bayesian_attack_graph():
     devices = load_devices()
     vulns = load_vulnerabilities()
 
-    # 设备 → 技术 映射
+    # devive → technique
     vulnerability_map = defaultdict(list)
     for v in vulns:
         dev_id = v.get("parent_device_id")
@@ -240,7 +240,7 @@ def bayesian_attack_graph():
             for tid in v.get("attack_techniques", []):
                 vulnerability_map[dev_id].append({"tech_id": tid})
 
-    # 构建 subnet → device 映射
+    # subnet → device 
     subnet_map = defaultdict(list)
     for d in devices:
         did = d["_id"]
@@ -248,7 +248,7 @@ def bayesian_attack_graph():
             if subnet := iface.get("subnet"):
                 subnet_map[subnet].append(did)
 
-    # 拓扑结构（连接关系 + 同 subnet）
+    # topology structure（connection + same subnet）
     topology = defaultdict(set)
     for d in devices:
         did = d["_id"]
@@ -402,7 +402,7 @@ def bayesian_attack_graph():
             cpd = model.get_cpds(child)
             if parent in cpd.variables:
                 idx = cpd.variables.index(parent)
-                # 找出 CPD 中 parent=1 时的概率
+                # find the probability of parent = 1 in CPD
                 parent_idx = cpd.variables.index(parent)
                 prob_array = cpd.values[0]
                 if isinstance(prob_array, (list, tuple)):
@@ -465,7 +465,6 @@ def infer_probability():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
-# 在 analysis.py 中添加
 def round_nested_values(data, precision=4):
     if isinstance(data, list):
         return [round_nested_values(item, precision) for item in data]
@@ -487,7 +486,7 @@ def get_cpd(node_id):
         cpd = bn_model_cache.get_cpds(node_id)
         raw_values = cpd.values.tolist()
         print(cpd, raw_values)
-        # ✅ 使用递归处理所有嵌套浮点数
+        # Using recursion to handle all nested floats
         values = round_nested_values(raw_values)
 
         response = {
