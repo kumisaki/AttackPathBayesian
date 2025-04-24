@@ -408,8 +408,13 @@ def _build_bayesian_model() -> DiscreteBayesianNetwork:
     devices = load_devices()
     vulns = load_vulnerabilities()
 
+<<<<<<< HEAD
     # device → techniques
     vulnerability_map: dict[str, list[str]] = defaultdict(list)
+=======
+    # devive → technique
+    vulnerability_map = defaultdict(list)
+>>>>>>> 240530229d54d43c62134ace3d1686d02079d27f
     for v in vulns:
         dev = v.get("parent_device_id")
         if not dev:
@@ -417,16 +422,26 @@ def _build_bayesian_model() -> DiscreteBayesianNetwork:
         for tid in v.get("attack_techniques", []):
             vulnerability_map[dev].append(tid)
 
+<<<<<<< HEAD
     # subnet → devices
     subnet_map: dict[str, list[str]] = defaultdict(list)
+=======
+    # subnet → device 
+    subnet_map = defaultdict(list)
+>>>>>>> 240530229d54d43c62134ace3d1686d02079d27f
     for d in devices:
         did = d["_id"]
         for iface in d.get("interfaces", []):
             if subnet := iface.get("subnet"):
                 subnet_map[subnet].append(did)
 
+<<<<<<< HEAD
     # topology edges (direct + same-subnet)
     topology: dict[str, set[str]] = defaultdict(set)
+=======
+    # topology structure（connection + same subnet）
+    topology = defaultdict(set)
+>>>>>>> 240530229d54d43c62134ace3d1686d02079d27f
     for d in devices:
         did = d["_id"]
         for iface in d.get("interfaces", []):
@@ -466,6 +481,7 @@ def _build_bayesian_model() -> DiscreteBayesianNetwork:
     tech2tactic = load_technique_to_tactic()
     device_vuln_map = _device_vuln_index(vulns)
 
+<<<<<<< HEAD
     # technique score map
     tech_score: dict[str, float] = {}
     for v in vulns:
@@ -482,6 +498,212 @@ def _build_bayesian_model() -> DiscreteBayesianNetwork:
             base = _root_probability(node, vulns)
             model.add_cpds(TabularCPD(node, 2, [[1 - base], [base]]))
             continue
+=======
+    for node in model.nodes:
+     # ---------------- Enhanced CPD Construction ---------------- #
+        technique_to_tactic_map = load_technique_to_tactic()
+
+        technique_score_map = {}
+        for v in vulns:
+            for tid in v.get("attack_techniques", []):
+                cvss = float(v.get("cvss", 5.0))
+                epss = float(v.get("epss", 0.0))
+                score = min(1.0, (cvss / 10.0) * (0.5 + epss))
+                technique_score_map[tid] = max(technique_score_map.get(tid, 0), score)
+
+        def estimate_parent_influence(pid, ptype, siblings, vulnerabilities, score_map, tactic_map):
+            if ptype == "device":
+                vulns = [v for v in vulnerabilities if v.get("parent_device_id") == pid]
+                tacs = set()
+                for v in vulns:
+                    for tid in v.get("attack_techniques", []):
+                        tacs.add(tactic_map.get(tid))
+                base_score = 0.6 + 0.1 * len(vulns)
+            else:
+                base_score = score_map.get(pid, 0.5)
+                tacs = {tactic_map.get(pid)}
+
+            overlap = 0
+            for sib in siblings:
+                if tacs & sib["tactics"]:
+                    overlap += 1
+
+            adjust = 0.15 * (len(siblings) - overlap) - 0.1 * overlap
+            return min(1.0, max(0.05, base_score + adjust))
+
+        for node in model.nodes:
+            parents = list(model.get_parents(node))
+            if not parents:
+                if node.startswith("compromised:"):
+                    dev_id = node.split(":")[1]
+                    vulns_for_dev = [v for v in vulns if v.get("parent_device_id") == dev_id]
+                    if vulns_for_dev:
+                        probs = []
+                        for v in vulns_for_dev:
+                            cvss = float(v.get("cvss", 5.0))
+                            epss = float(v.get("epss", 0.0))
+                            p = min(1.0, (cvss / 10.0) * (0.5 + epss))
+                            probs.append(p)
+                        base_prob = max(probs)
+                    else:
+                        base_prob = 0.05
+                else:
+                    base_prob = 0.05
+                cpd = TabularCPD(node, 2, [[base_prob], [1 - base_prob]])
+                model.add_cpds(cpd)
+            else:
+                prob_true = []
+                prob_false = []
+                for i in range(2 ** len(parents)):
+                    bits = list(map(int, format(i, f"0{len(parents)}b")))
+                    parent_info = []
+                    for j, p in enumerate(parents):
+                        pid = p.split(":")[1]
+                        ptype = "device" if p.startswith("compromised:") else "technique"
+                        tacs = set()
+                        if ptype == "device":
+                            vulns = [v for v in load_vulnerabilities() if v.get("parent_device_id") == pid]
+                            for v in vulns:
+                                for tid in v.get("attack_techniques", []):
+                                    tacs.add(technique_to_tactic_map.get(tid))
+                        else:
+                            tacs.add(technique_to_tactic_map.get(pid))
+                        parent_info.append({"id": pid, "type": ptype, "tactics": tacs})
+
+                    active_prob = 0.0
+                    for j, bit in enumerate(bits):
+                        if bit == 1:
+                            p = parents[j]
+                            pid = p.split(":")[1]
+                            ptype = "device" if p.startswith("compromised:") else "technique"
+                            prob = estimate_parent_influence(pid, ptype, parent_info[:j] + parent_info[j+1:], load_vulnerabilities(), technique_score_map, technique_to_tactic_map)
+                            active_prob = max(active_prob, prob)
+
+                    prob_true.append(active_prob)
+                    prob_false.append(1 - active_prob)
+
+                cpd = TabularCPD(
+                    node, 2,
+                    [prob_true, prob_false],
+                    evidence=parents,
+                    evidence_card=[2] * len(parents)
+                )
+                model.add_cpds(cpd)
+        # ---------------------------------------------------------- #
+
+
+    model.check_model()
+    bn_model_cache = model
+
+    # Collect edge probabilities for front-end
+    edge_prob_map = {}
+    for edge in model.edges:
+        parent, child = edge
+    from utils.estimat_probabilities import compute_structural_probability
+
+    for edge in model.edges:
+        parent, child = edge
+        try:
+            cpd = model.get_cpds(child)
+            if parent in cpd.variables:
+                idx = cpd.variables.index(parent)
+                # find the probability of parent = 1 in CPD
+                parent_idx = cpd.variables.index(parent)
+                prob_array = cpd.values[0]
+                if isinstance(prob_array, (list, tuple)):
+                    edge_prob_map[edge] = round(prob_array[0], 3)
+                else:
+                    edge_prob_map[edge] = round(float(prob_array), 3)
+        except:
+            edge_prob_map[edge] = compute_structural_probability(
+                parents=[parent],
+                node=child,
+                technique_score_map=technique_score_map,
+                technique_to_tactic_map=technique_to_tactic_map,
+                vulnerabilities=vulns
+            )
+
+    session["attack_graph"] = {
+        "nodes": list(model.nodes),
+        "edges": list(model.edges)
+    }
+
+    return jsonify({
+        "nodes": list(model.nodes),
+        "edges": list(model.edges),
+        "edge_probs": {f"{src}→{tgt}": prob for (src, tgt), prob in edge_prob_map.items()}
+    })
+
+@analysis_bp.route('/node_search')
+def node_search():
+    q = request.args.get('q', '').lower()
+    attack_graph = session.get('attack_graph', {})
+    nodes = attack_graph.get('nodes', [])
+    matched = [n for n in nodes if q in n.lower()]
+    return jsonify(matched)
+
+
+@analysis_bp.route('/infer_probability')
+def infer_probability():
+    global bn_model_cache
+    if not bn_model_cache:
+        return jsonify({"error": "Model not ready"}), 400
+    node = request.args.get("observe")
+    if not node:
+        return jsonify({"error": "Missing observe param"}), 400
+
+    try:
+        infer = VariableElimination(bn_model_cache)
+        evidence = {node: 1}
+        result = {}
+        for n in bn_model_cache.nodes:
+            if n == node:
+                continue
+            q = infer.query(variables=[n], evidence=evidence, show_progress=False)
+            prob = q.values[1] if hasattr(q, 'values') else 0
+            result[n] = float(round(prob, 3))
+
+        return jsonify({
+            "probabilities": result,
+            "highlight": sorted((k for k, v in result.items() if v > 0.5), key=lambda x: -result[x])
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+def round_nested_values(data, precision=4):
+    if isinstance(data, list):
+        return [round_nested_values(item, precision) for item in data]
+    else:
+        try:
+            return round(float(data), precision)
+        except Exception:
+            return data  # fallback: in case it's a string or something unexpected
+
+
+
+@analysis_bp.route("/get_cpd/<node_id>")
+def get_cpd(node_id):
+    global bn_model_cache
+    if not bn_model_cache:
+        return jsonify({"error": "Model not loaded"}), 400
+
+    try:
+        cpd = bn_model_cache.get_cpds(node_id)
+        raw_values = cpd.values.tolist()
+        print(cpd, raw_values)
+        # Using recursion to handle all nested floats
+        values = round_nested_values(raw_values)
+
+        response = {
+            "variable": str(cpd.variable),
+            "variables": [str(v) for v in cpd.variables],
+            "cardinality": [int(c) for c in cpd.cardinality],
+            "values": values
+        }
+        return jsonify(response)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+>>>>>>> 240530229d54d43c62134ace3d1686d02079d27f
 
         parent_tuples = [
             (p.split(":", 1)[1], "device" if p.startswith("compromised:") else "technique")
