@@ -1,115 +1,94 @@
-from collections import defaultdict
-from typing import List, Dict
+"""
+Helper functions for CPD probability estimation.
+File path: utils/estimate_probabilities.py
+"""
 
-def estimate_parent_influence(target_node_id, target_type, parent_info, all_vulns, technique_score_map, technique_to_tactic_map):
-    """
-    Estimate influence from multiple parents.
-    parent_info: list of (node_id, node_type)
-    """
+from __future__ import annotations
+from typing import Dict, List, Mapping, Sequence, Set, Tuple
 
-    tactic_weights = []
-    influence_scores = []
-    tactic_set = set()
+MIN_PROB, MAX_PROB = 0.0, 1.0
+TACTIC_REPEAT_FACTOR = 0.7      # all tactics identical → down-weight
+TACTIC_DIVERSE_FACTOR = 1.2     # tactics diverse      → up-weight
+DEFAULT_PROB = 0.3
+
+
+def _clamp(x: float, low: float = MIN_PROB, high: float = MAX_PROB) -> float:
+    return max(low, min(high, x))
+
+
+def estimate_parent_influence(
+    parent_info: Sequence[Tuple[str, str]],
+    *,
+    device_vulns: Mapping[str, Sequence[dict]],
+    technique_score_map: Mapping[str, float],
+    technique_to_tactic_map: Mapping[str, str],
+) -> float:
+    """Return P(child=1 | given active parents)."""
+    scores: List[float] = []
+    tactic_sets: List[Set[str]] = []
 
     for pid, ptype in parent_info:
         if ptype == "device":
-            # 取该设备的漏洞
-            vulns = [v for v in all_vulns if v.get("parent_device_id") == pid]
+            vulns = device_vulns.get(pid, ())
             if not vulns:
                 continue
-            # 对该设备的漏洞求一个最大评分
-            scores = []
-            tactics = set()
-            for v in vulns:
-                cvss = float(v.get("cvss", 5.0))
-                epss = float(v.get("epss", 0.0))
-                p = (cvss / 10.0) * (0.5 + epss)
-                if epss < 0.1:
-                    p *= 0.5  # 🎯 EPS<0.1降低影响
-                scores.append(p)
-                # 收集漏洞的 tactic（通过 technique）
-                for tid in v.get("attack_techniques", []):
-                    if tactic := technique_to_tactic_map.get(tid):
-                        tactics.add(tactic)
+            s = max(
+                _clamp((float(v.get("cvss", 5.0)) / 10) * (0.5 + float(v.get("epss", 0))))
+                * (0.5 if float(v.get("epss", 0)) < 0.1 else 1.0)
+                for v in vulns
+            )
+            scores.append(s)
+            tactic_sets.append(
+                {
+                    technique_to_tactic_map[tid]
+                    for v in vulns
+                    for tid in v.get("attack_techniques", [])
+                    if tid in technique_to_tactic_map
+                }
+            )
+        else:  # technique
+            s = _clamp(technique_score_map.get(pid, DEFAULT_PROB))
+            if s < 0.1:
+                s *= 0.5
+            scores.append(s)
+            tactic_sets.append({technique_to_tactic_map.get(pid)})
 
-            influence_scores.append(max(scores))
-            tactic_set.update(tactics)
-            tactic_weights.append(tactics)
+    if not scores:
+        return DEFAULT_PROB
 
-        elif ptype == "technique":
-            score = technique_score_map.get(pid, 0.3)
-            if score < 0.1:
-                score *= 0.5
-            influence_scores.append(score)
-            tactic = technique_to_tactic_map.get(pid)
-            tactic_set.add(tactic)
-            tactic_weights.append({tactic})
-
-    if not influence_scores:
-        return 0.3  # fallback
-
-    # 🎯 tactic 多样性评分
-    distinct_tactic_count = len(set.union(*tactic_weights)) if tactic_weights else 0
-    all_same = all(t == tactic_weights[0] for t in tactic_weights)
-    
-    if all_same:
-        tactic_adjust = 0.7  # tactic repeate → turn down
-    elif distinct_tactic_count > 1:
-        tactic_adjust = 1.2  # tactic shows strong diversity → turnup
+    if not tactic_sets:
+        diversity = 1.0
+    elif all(ts == tactic_sets[0] for ts in tactic_sets):
+        diversity = TACTIC_REPEAT_FACTOR
+    elif len(set().union(*tactic_sets)) > 1:
+        diversity = TACTIC_DIVERSE_FACTOR
     else:
-        tactic_adjust = 1.0
+        diversity = 1.0
 
-    # multiple parent Normalize to average instead of product
-    base_score = sum(influence_scores) / len(influence_scores)
+    return _clamp(sum(scores) / len(scores) * diversity)
 
-    return min(1.0, base_score * tactic_adjust)
 
-# utils/estimat_probabilities.py
+def compute_structural_probability(
+    parents: Sequence[str],
+    node: str,
+    *,
+    technique_score_map: Mapping[str, float],
+    technique_to_tactic_map: Mapping[str, str],
+    vulnerabilities: Sequence[dict],
+) -> float:
+    device_idx: Dict[str, List[dict]] = {}
+    for v in vulnerabilities:
+        dev = v.get("parent_device_id")
+        if dev:
+            device_idx.setdefault(dev, []).append(v)
 
-def compute_structural_probability(parents, node, technique_score_map, technique_to_tactic_map, vulnerabilities):
-    """
-    Estimate structural probability of a node given its parents.
-    Uses tactic overlap, technique scores, and EPSS modifiers.
-
-    Arguments:
-    - parents: list of parent node ids (e.g., 'technique:T0803' or 'compromised:plc-01')
-    - node: current node id
-    - technique_score_map: map of technique_id → float score
-    - technique_to_tactic_map: map of technique_id → tactic_id
-    - vulnerabilities: all vulnerability entries
-
-    Returns:
-    - float: estimated probability between 0.0 and 1.0
-    """
-    parent_info = []
-    for p in parents:
-        pid = p.split(":")[1]
-        ptype = "device" if p.startswith("compromised:") else "technique"
-        tacs = set()
-
-        if ptype == "device":
-            vulns = [v for v in vulnerabilities if v.get("parent_device_id") == pid]
-            for v in vulns:
-                for tid in v.get("attack_techniques", []):
-                    tacs.add(technique_to_tactic_map.get(tid))
-        else:
-            tacs.add(technique_to_tactic_map.get(pid))
-
-        base_score = 0.6 + 0.1 * len(tacs) if ptype == "device" else technique_score_map.get(pid, 0.5)
-        if ptype == "technique":
-            for v in vulnerabilities:
-                if pid in v.get("attack_techniques", []):
-                    if float(v.get("epss", 0)) < 0.1:
-                        base_score *= 0.5
-
-        parent_info.append({"id": pid, "type": ptype, "tactics": tacs, "score": base_score})
-
-    # tactic overlap analysis
-    tactic_sets = [p["tactics"] for p in parent_info]
-    total_tactics = set.union(*tactic_sets) if tactic_sets else set()
-    overlap_count = sum(len(total_tactics & p["tactics"]) > 0 for p in parent_info)
-
-    tactic_weight = 0.7 if overlap_count == len(parent_info) else 1.2
-    avg_score = sum(p["score"] for p in parent_info) / len(parent_info) if parent_info else 0.1
-
-    return round(min(1.0, avg_score * tactic_weight), 3)
+    info = [
+        (p.split(":", 1)[1], "device" if p.startswith("compromised:") else "technique")
+        for p in parents
+    ]
+    return estimate_parent_influence(
+        parent_info=info,
+        device_vulns=device_idx,
+        technique_score_map=technique_score_map,
+        technique_to_tactic_map=technique_to_tactic_map,
+    )
