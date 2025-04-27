@@ -42,22 +42,24 @@ def load_subnets() -> List[Dict[str, Any]]:
 def load_devices() -> List[Dict[str, Any]]:
     return list(get_project_db(_project_db()).devices.find({}))
 
+def load_firewall_rules() -> List[Dict[str, Any]]:
+    return list(get_project_db(_project_db()).firewall_rules.find({}))
 
 def load_vulnerabilities() -> List[Dict[str, Any]]:
     return list(get_project_db(_project_db()).vulnerabilities.find({}))
 
-
 def load_techniques() -> List[Dict[str, Any]]:
     return list(attack_reference.techniques.find({}))
-
 
 def load_tactics() -> List[Dict[str, Any]]:
     return list(attack_reference.tactics.find({}))
 
-
 def load_technique_to_tactic() -> Dict[str, str]:
     mappings = attack_reference.techniques_to_tactics.find({})
     return {m["technique_id"]: m["tactic_id"] for m in mappings}
+
+def load_tactic_chain() -> List[Dict[str, Any]]:
+    return list(attack_reference.tactic_chain.find({}))
 
 
 # ---------------------------------------------------------------------------
@@ -261,48 +263,246 @@ def analysis_topology_graph():
 def bayesian_attack_graph_page():
     return render_template("bayesian_attack_graph.html")
 
+@analysis_bp.route("/clear_attack_graph_cache")
+def clear_attack_graph_cache():
+    _bn_cache.clear()
+    return "Attack graph cache cleared.", 200
 
 @analysis_bp.route("/bayesian_attack_graph")
 def bayesian_attack_graph():
     project = _project_db()
-    if project not in _bn_cache:
-        _bn_cache[project] = _build_bayesian_model()
-
+    # if project not in _bn_cache:
+    #     _bn_cache[project] = _build_bayesian_model()
+    _bn_cache[project] = _build_bayesian_model()
     model = _bn_cache[project]
-
-    # ------------------------------------------------------------
+    print(model)
+    # 计算每条边的传播概率
     edge_prob_map: dict[tuple[str, str], float] = {}
-
     for parent, child in model.edges:
-        cpd = model.get_cpds(child)
-
-        # If the parent variable is not in this CPD (shouldn’t happen), default to 0
-        if parent not in cpd.variables:
+        try:
+            cpd = model.get_cpds(child)
+            if parent not in cpd.variables:
+                edge_prob_map[(parent, child)] = 0.0
+                continue
+            reduced = cpd.reduce([(parent, 1)], inplace=False)
+            true_state_index = list(reduced.state_names[child]).index(1)
+            prob_true = float(np.asarray(reduced.values[true_state_index]).mean())
+            edge_prob_map[(parent, child)] = round(prob_true, 3)
+        except Exception:
             edge_prob_map[(parent, child)] = 0.0
-            continue
 
-        # Reduce the CPD by fixing parent = 1 (True)
-        reduced = cpd.reduce([(parent, 1)], inplace=False)
-
-        # Index of the “True” state for the child variable
-        true_state_index = list(reduced.state_names[child]).index(1)
-
-        # reduced.values[true_state_index] may still be an N-D array because
-        # other parents were not fixed; we marginalise over the remaining axes
-        prob_true = float(np.asarray(reduced.values[true_state_index]).mean())
-
-        edge_prob_map[(parent, child)] = round(prob_true, 3)
-    # ------------------------------------------------------------
-
+    # 保存 graph 结构到 session
     session["attack_graph"] = {"nodes": list(model.nodes), "edges": list(model.edges)}
 
-    return jsonify(
-        {
-            "nodes": list(model.nodes),
-            "edges": list(model.edges),
-            "edge_probs": {f"{src}→{tgt}": p for (src, tgt), p in edge_prob_map.items()},
-        }
-    )
+    devices = load_devices()
+    techniques = load_techniques()
+
+    device_map = {str(d["_id"]): d.get("label", str(d["_id"])) for d in devices}
+    technique_map = {t["technique_id"]: t.get("technique_name", t["technique_id"]) for t in techniques}
+
+    node_info = []
+    for n in model.nodes:
+        label = n.split(":", 1)[1]
+        if n.startswith("compromised:"):
+            label = device_map.get(label, label)
+        elif n.startswith("technique:"):
+            label = technique_map.get(label, label)
+        node_info.append({"id": n, "label": label})
+
+    return jsonify({
+        "nodes": node_info,
+        "edges": list(model.edges),
+        "edge_probs": {f"{src}→{tgt}": p for (src, tgt), p in edge_prob_map.items()},
+    })
+
+def _build_bayesian_model() -> DiscreteBayesianNetwork:
+    devices = load_devices()
+    vulns = load_vulnerabilities()
+    firewall_rules = load_firewall_rules()
+    tech2tactic = load_technique_to_tactic()
+    tactics_chain = load_tactic_chain()
+    tactics_order = _build_tactic_order(tactics_chain)
+
+    device_ids = {str(d["_id"]) for d in devices}
+    device_info = {str(d["_id"]): d for d in devices}
+
+    # Build topology from firewall rules
+    topology: dict[str, set[str]] = defaultdict(set)
+    for rule in firewall_rules:
+        src = rule.get("outbound")
+        tgt = rule.get("inbound")
+        if src in device_ids and tgt in device_ids:
+            topology[src].add(tgt)
+
+    # Build device -> techniques mapping
+    device_techniques: dict[str, set[str]] = defaultdict(set)
+    for v in vulns:
+        dev = v.get("parent_device_id")
+        if dev:
+            for tid in v.get("attack_techniques", []):
+                device_techniques[dev].add(tid)
+
+    G_tmp = nx.DiGraph()
+    edges = []
+
+    active_devices = set()
+    activated_techniques = defaultdict(set)
+
+    # Step 1: Initial Access → compromised:device
+    for dev, techs in device_techniques.items():
+        for tid in techs:
+            tactic = tech2tactic.get(tid)
+            if tactic and tactic in {"TA0001", "TA0108"}:  # Enterprise or ICS Initial Access
+                edge = (f"technique:{tid}", f"compromised:{dev}")
+                G_tmp.add_edge(*edge)
+                if nx.is_directed_acyclic_graph(G_tmp):
+                    edges.append(edge)
+                    active_devices.add(dev)
+                    activated_techniques[dev].add(tid)
+                else:
+                    G_tmp.remove_edge(*edge)
+
+    # Step 2: Recursively expand
+    queue = list(active_devices)
+    while queue:
+        dev = queue.pop(0)
+
+        # Step 2.1: compromised:device ➔ techniques (activation)
+        for tid in device_techniques.get(dev, []):
+            edge = (f"compromised:{dev}", f"technique:{tid}")
+            G_tmp.add_edge(*edge)
+            if nx.is_directed_acyclic_graph(G_tmp):
+                edges.append(edge)
+                activated_techniques[dev].add(tid)
+            else:
+                G_tmp.remove_edge(*edge)
+
+        current_techs = activated_techniques[dev]
+
+        # Step 2.2: techniques ➔ techniques (internal progression)
+        for tid1 in current_techs:
+            tactic1 = tech2tactic.get(tid1)
+            for tid2 in device_techniques.get(dev, []):
+                tactic2 = tech2tactic.get(tid2)
+                if tactic1 and tactic2 and _tactic_can_progress(tactic1, tactic2, tactics_order):
+                    edge = (f"technique:{tid1}", f"technique:{tid2}")
+                    G_tmp.add_edge(*edge)
+                    if nx.is_directed_acyclic_graph(G_tmp):
+                        edges.append(edge)
+                    else:
+                        G_tmp.remove_edge(*edge)
+
+        # Step 2.3: lateral movement (technique ➔ compromised:other_device)
+        for tid in current_techs:
+            tactic = tech2tactic.get(tid)
+            if tactic and _tactic_can_move(tactic, tactics_order):
+                for neighbor_dev in topology.get(dev, []):
+                    if neighbor_dev not in active_devices:
+                        edge = (f"technique:{tid}", f"compromised:{neighbor_dev}")
+                        G_tmp.add_edge(*edge)
+                        if nx.is_directed_acyclic_graph(G_tmp):
+                            edges.append(edge)
+                            active_devices.add(neighbor_dev)
+                            queue.append(neighbor_dev)
+                        else:
+                            G_tmp.remove_edge(*edge)
+
+        # Step 2.4: router infection spread (compromised:router ➔ compromised:neighbor_device)
+        if _is_router(device_info.get(dev)):
+            for neighbor_dev in topology.get(dev, []):
+                if neighbor_dev not in active_devices:
+                    edge = (f"compromised:{dev}", f"compromised:{neighbor_dev}")
+                    G_tmp.add_edge(*edge)
+                    if nx.is_directed_acyclic_graph(G_tmp):
+                        edges.append(edge)
+                        active_devices.add(neighbor_dev)
+                        queue.append(neighbor_dev)
+                    else:
+                        G_tmp.remove_edge(*edge)
+
+    # Step 3: Build final Bayesian Network
+    model = DiscreteBayesianNetwork(edges)
+
+    # --- Add CPDs ---
+    device_vuln_map = _device_vuln_index(vulns)
+    tech_score_map = _build_tech_score_map(vulns)
+
+    for node in model.nodes:
+        parents = list(model.get_parents(node))
+        if not parents:
+            base = _root_probability(node, vulns)
+            model.add_cpds(TabularCPD(node, 2, [[1 - base], [base]]))
+            continue
+
+        prob_true, prob_false = [], []
+        p_count = len(parents)
+
+        for i in range(2**p_count):
+            bits = list(map(int, format(i, f"0{p_count}b")))
+            active = [(parents[j], bits[j]) for j in range(p_count) if bits[j] == 1]
+            active_info = [(p.split(":", 1)[1], "device" if p.startswith("compromised:") else "technique") for p, _ in active]
+
+            p_active = estimate_parent_influence(
+                parent_info=active_info,
+                device_vulns=device_vuln_map,
+                technique_score_map=tech_score_map,
+                technique_to_tactic_map=tech2tactic,
+            )
+            prob_true.append(p_active)
+            prob_false.append(1 - p_active)
+
+        model.add_cpds(
+            TabularCPD(
+                node, 2, [prob_false, prob_true], evidence=parents, evidence_card=[2] * p_count
+            )
+        )
+
+    model.check_model()
+    return model
+
+
+
+
+# --------------- 辅助函数 ----------------
+
+def _build_tactic_order(tactic_chain_data):
+    order_map = defaultdict(list)
+    for item in tactic_chain_data:
+        curr = item["tactic"]
+        nxt = item["next"]
+        if isinstance(nxt, str):
+            nxt = eval(nxt)  # 只在是字符串时才 eval
+        for n in nxt:
+            order_map[curr].append(n)
+    return order_map
+
+def _tactic_can_progress(tac_from, tac_to, order_map):
+    if tac_from in order_map:
+        return tac_to in order_map[tac_from]
+    return False
+
+def _tactic_can_move(tactic_id: str, tactic_order_map: dict) -> bool:
+    """判断一个tactic是否可以向后扩展（横向移动）"""
+    return bool(tactic_order_map.get(tactic_id))
+
+def _is_router(device: dict) -> bool:
+    """判断一个设备是不是Router型"""
+    if not device:
+        return False
+    interfaces = device.get("interfaces", [])
+    subnets = {iface.get("subnet") for iface in interfaces if iface.get("subnet")}
+    return len(subnets) >= 2 or device.get("device_type", "").lower() in {"router", "gateway", "firewall"}
+
+
+def _build_tech_score_map(vulns):
+    score = {}
+    for v in vulns:
+        for tid in v.get("attack_techniques", []):
+            cvss = float(v.get("cvss", 5.0))
+            epss = float(v.get("epss", 0.0))
+            score[tid] = max(score.get(tid, 0.0), min(1.0, (cvss/10.0)*(0.5+epss)))
+    return score
+
 
 
 # ---------------------------------------------------------------------------
@@ -403,116 +603,3 @@ def _root_probability(node: str, vulns: list[dict]) -> float:
         return max(scores) if scores else 0.05
     return 0.05
 
-
-def _build_bayesian_model() -> DiscreteBayesianNetwork:
-    devices = load_devices()
-    vulns = load_vulnerabilities()
-
-    # device → techniques
-    vulnerability_map: dict[str, list[str]] = defaultdict(list)
-    for v in vulns:
-        dev = v.get("parent_device_id")
-        if not dev:
-            continue
-        for tid in v.get("attack_techniques", []):
-            vulnerability_map[dev].append(tid)
-
-    # subnet → devices
-    subnet_map: dict[str, list[str]] = defaultdict(list)
-    for d in devices:
-        did = d["_id"]
-        for iface in d.get("interfaces", []):
-            if subnet := iface.get("subnet"):
-                subnet_map[subnet].append(did)
-
-    # topology edges (direct + same-subnet)
-    topology: dict[str, set[str]] = defaultdict(set)
-    for d in devices:
-        did = d["_id"]
-        for iface in d.get("interfaces", []):
-            if tgt := iface.get("connected_to"):
-                topology[did].add(tgt)
-
-    for devs in subnet_map.values():
-        for i, src in enumerate(devs):
-            for tgt in devs[i + 1 :]:
-                topology[src].add(tgt)
-                topology[tgt].add(src)
-
-    # build DAG
-    G_tmp = nx.DiGraph()
-    edges: list[tuple[str, str]] = []
-
-    for src, techs in vulnerability_map.items():
-        for tid in techs:
-            e1 = (f"compromised:{src}", f"technique:{tid}")
-            G_tmp.add_edge(*e1)
-            if nx.is_directed_acyclic_graph(G_tmp):
-                edges.append(e1)
-            else:
-                G_tmp.remove_edge(*e1)
-
-            for tgt in topology[src]:
-                e2 = (f"technique:{tid}", f"compromised:{tgt}")
-                G_tmp.add_edge(*e2)
-                if nx.is_directed_acyclic_graph(G_tmp):
-                    edges.append(e2)
-                else:
-                    G_tmp.remove_edge(*e2)
-
-    model = DiscreteBayesianNetwork(edges)
-
-    # CPDs
-    tech2tactic = load_technique_to_tactic()
-    device_vuln_map = _device_vuln_index(vulns)
-
-    # technique score map
-    tech_score: dict[str, float] = {}
-    for v in vulns:
-        for tid in v.get("attack_techniques", []):
-            cvss = float(v.get("cvss", 5.0))
-            epss = float(v.get("epss", 0.0))
-            tech_score[tid] = max(
-                tech_score.get(tid, 0.0), min(1.0, (cvss / 10.0) * (0.5 + epss))
-            )
-
-    for node in model.nodes:
-        parents = list(model.get_parents(node))
-        if not parents:
-            base = _root_probability(node, vulns)
-            model.add_cpds(TabularCPD(node, 2, [[1 - base], [base]]))
-            continue
-
-        parent_tuples = [
-            (p.split(":", 1)[1], "device" if p.startswith("compromised:") else "technique")
-            for p in parents
-        ]
-        prob_true: list[float] = []
-        prob_false: list[float] = []
-        p_count = len(parents)
-
-        for i in range(2**p_count):
-            bits = list(map(int, format(i, f"0{p_count}b")))
-            active = [pt for bit, pt in zip(bits, parent_tuples) if bit == 1]
-
-            p_active = estimate_parent_influence(
-                parent_info=active,
-                device_vulns=device_vuln_map,
-                technique_score_map=tech_score,
-                technique_to_tactic_map=tech2tactic,
-            )
-            prob_true.append(p_active)
-            prob_false.append(1 - p_active)
-
-        model.add_cpds(
-            TabularCPD(
-                node,
-                2,
-                [prob_false, prob_true],  # state-0, state-1
-                evidence=parents,
-                evidence_card=[2] * p_count,
-            )
-        )
-
-    model.check_model()
-    return model

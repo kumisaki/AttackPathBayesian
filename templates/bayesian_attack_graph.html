@@ -74,12 +74,12 @@
     const elements = [];
     const edgeProbMap = data.edge_probs || {};
 
-    for (let id of data.nodes) {
+    for (let node of data.nodes) {
       elements.push({
         data: {
-          id,
-          label: id.split(':')[1],
-          type: id.includes('technique') ? 'technique' : 'device'
+          id: node.id,
+          label: node.label,
+          type: node.id.includes('technique') ? 'technique' : 'device'
         }
       });
     }
@@ -109,17 +109,20 @@
             'background-color': ele => ele.data('type') === 'technique' ? '#6f42c1' : '#337ab7',
             'border-color': '#000',
             'border-width': 1,
-            'width': 140,
-            'height': 50
+            'shape': ele => ele.data('type') === 'technique' ? 'hexagon' : 'rectangle',
+            'width': 220,
+            'height': 50,
+            'font-size': 12
           }
         },
         {
           selector: 'edge',
           style: {
-            'label': 'data(label)',
+
             'font-size': 10,
             'text-background-color': '#fff',
             'text-background-opacity': 1,
+            'curve-style': 'bezier',
             'text-background-shape': 'roundrectangle',
             'color': '#17a2b8',
             'line-color': '#17a2b8',
@@ -133,9 +136,9 @@
 
     cy.on('tap', 'node', function (evt) {
       const data = evt.target.data();
-      const nodeId = data.id;
+      const node_label = data.label;
 
-      $('#modalNodeId').text(nodeId);
+      $('#modalNodeId').text(node_label);
       $('#modalNodeLabel').text(data.label || '');
       // $('#modalNodeDetails').html('<p>Loading CPD...</p>');
 
