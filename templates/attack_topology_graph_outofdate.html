@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Network Attack Topology</h2>
+<div id="cy" style="width: 100%; height: 700px; border: 1px solid #aaa;"></div>
+
+<script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
+<script src="https://unpkg.com/dagre/dist/dagre.min.js"></script>
+<script src="https://unpkg.com/cytoscape-dagre/cytoscape-dagre.js"></script>
+
+<script>
+cytoscape.use(cytoscapeDagre);
+
+async function loadTopology() {
+  const res = await fetch("/attack_topology_graph_data");
+  const data = await res.json();
+
+  const cy = cytoscape({
+    container: document.getElementById('cy'),
+    elements: data.elements,
+    layout: {
+      name: 'dagre',
+      rankDir: 'LR',
+      nodeSep: 50,
+      rankSep: 100
+    },
+    style: [
+      {
+        selector: 'node',
+        style: {
+          'label': 'data(label)',
+          'text-valign': 'center',
+          'color': '#fff',
+          'background-color': '#007bff',
+          'shape': 'rectangle',
+          'width': 180,
+          'height': 40
+        }
+      },
+      {
+        selector: 'edge',
+        style: {
+          'label': 'data(label)',
+          'font-size': 10,
+          'text-background-color': '#fff',
+          'text-background-opacity': 1,
+          'line-color': '#aaa',
+          'target-arrow-shape': 'triangle',
+          'target-arrow-color': '#aaa',
+          'curve-style': 'bezier'
+        }
+      }
+    ]
+  });
+}
+
+loadTopology();
+</script>
+{% endblock %}

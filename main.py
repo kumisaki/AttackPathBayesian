@@ -5,6 +5,7 @@ from utils.init_reference import init_attack_reference
 from topology import topology_bp
 from vulnerability import vuln_bp
 from analysis import analysis_bp
+# from attack_topology_view import attack_topology_bp
 import os
 
 def create_app():
@@ -22,6 +23,8 @@ def create_app():
     app.register_blueprint(topology_bp, url_prefix="/topology")
     app.register_blueprint(vuln_bp, url_prefix="/vulnerability")
     app.register_blueprint(analysis_bp, url_prefix="/analysis")
+    
+    # app.register_blueprint(attack_topology_bp, url_prefix="/attack")
 
     # Home page: create new project/select a project
     @app.route("/")

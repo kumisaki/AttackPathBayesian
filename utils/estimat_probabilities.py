@@ -1,6 +1,6 @@
 """
-Helper functions for CPD probability estimation.
-File path: utils/estimate_probabilities.py
+Helper functions to estimate conditional probability distributions (CPDs).
+This module supports computing node activation probabilities in Bayesian attack graphs.
 """
 
 from __future__ import annotations
@@ -15,17 +15,21 @@ DEFAULT_PROB = 0.3
 def _clamp(x: float, low: float = MIN_PROB, high: float = MAX_PROB) -> float:
     return max(low, min(high, x))
 
-
 def estimate_parent_influence(
     parent_info: Sequence[Tuple[str, str]],
     *,
     device_vulns: Mapping[str, Sequence[dict]],
     technique_score_map: Mapping[str, float],
     technique_to_tactic_map: Mapping[str, str],
+    future_children: Sequence[str] = (),
+    tactic_order: Mapping[str, Sequence[str]] = {},
 ) -> float:
-    """Return P(child=1 | given active parents)."""
+    """Return P(child=1 | given active parents), considering future propagation potential."""
     scores: List[float] = []
     tactic_sets: List[Set[str]] = []
+
+    def _can_progress(t1: str, t2: str, order_map: Mapping[str, Sequence[str]]) -> bool:
+        return t2 in order_map.get(t1, [])
 
     for pid, ptype in parent_info:
         if ptype == "device":
@@ -56,6 +60,7 @@ def estimate_parent_influence(
     if not scores:
         return DEFAULT_PROB
 
+    # --- Adjust based on diversity of tactics among parent nodes ---
     if not tactic_sets:
         diversity = 1.0
     elif all(ts == tactic_sets[0] for ts in tactic_sets):
@@ -65,7 +70,32 @@ def estimate_parent_influence(
     else:
         diversity = 1.0
 
-    return _clamp(sum(scores) / len(scores) * diversity)
+    base = _clamp(sum(scores) / len(scores) * diversity)
+
+    # --- Apply bonus if child node can propagate to diverse future tactics ---
+    if future_children:
+        tactics = {
+            technique_to_tactic_map.get(tid.split(":", 1)[1])
+            for tid in future_children
+            if tid.startswith("technique:") and tid.split(":", 1)[1] in technique_to_tactic_map
+        }
+        tactics = {t for t in tactics if t}
+
+        found_progression = False
+        tactics = list(tactics)
+        for i in range(len(tactics)):
+            for j in range(i + 1, len(tactics)):
+                if _can_progress(tactics[i], tactics[j], tactic_order) or \
+                _can_progress(tactics[j], tactics[i], tactic_order):
+                    found_progression = True
+                    break
+            if found_progression:
+                break
+
+        if found_progression:
+            base *= 1.15  # Forward propagation bonus
+
+    return _clamp(base)
 
 
 def compute_structural_probability(

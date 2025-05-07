@@ -11,6 +11,7 @@
 <div class="form-inline mb-3">
   <select id="observe-node" class="form-control" style="width: 300px;"></select>
   <button class="btn btn-info ml-2" onclick="runInference()">Infer Cause</button>
+  <button class="btn btn-secondary ml-2" onclick="toggleTopologyView()">Toggle Topology View</button> <!-- 新按钮 -->
 </div>
 
 
@@ -105,13 +106,13 @@
             'label': 'data(label)',
             'text-valign': 'center',
             'text-halign': 'center',
-            'color': '#fff',
-            'background-color': ele => ele.data('type') === 'technique' ? '#6f42c1' : '#337ab7',
+            'color': '#111',
+            'background-color': ele => ele.data('type') === 'technique' ? '#fff' : '#fff',
             'border-color': '#000',
             'border-width': 1,
-            'shape': ele => ele.data('type') === 'technique' ? 'hexagon' : 'rectangle',
+            'shape': ele => ele.data('type') === 'technique' ? 'ellipse' : 'rectangle',
             'width': 220,
-            'height': 50,
+            'height': 30,
             'font-size': 12
           }
         },
@@ -124,10 +125,10 @@
             'text-background-opacity': 1,
             'curve-style': 'bezier',
             'text-background-shape': 'roundrectangle',
-            'color': '#17a2b8',
-            'line-color': '#17a2b8',
+            'color': '#000',
+            'line-color': '#000',
             'target-arrow-shape': 'triangle',
-            'target-arrow-color': '#17a2b8',
+            'target-arrow-color': '#000',
             'width': 1
           }
         }
@@ -168,6 +169,17 @@
       $('#nodeDetailModal').modal('show');
     });
 
+    const initialPaths = data.initial_paths || [];
+    const $container = $('<div class="mt-4"><h5>Top Static Attack Paths (Initial Model):</h5><ol></ol></div>');
+    const $list = $container.find('ol');
+
+    initialPaths.forEach(p => {
+      const line = `${p.path.join(" → ")} (P=${(p.prob * 100).toFixed(2)}%)`;
+      $list.append(`<li>${line}</li>`);
+    });
+
+    $('#cy').after($container);
+
   }
 
   async function runInference() {
@@ -179,6 +191,7 @@
     if (data.error) return alert(data.error);
 
     const probs = data.probabilities || {};
+    const labels = data.labels || {};
     const highlight = new Set(data.highlight || []);
 
     if (!cy) return;
@@ -190,9 +203,11 @@
       const green = Math.round(255 * (1 - p));
       n.style('background-color', `rgb(${red},${green},0)`);
       n.style('border-width', highlight.has(id) ? 2 : 1);
-      const baseLabel = id.split(':')[1];
-      n.data('label', `${baseLabel} (${Math.round(p * 100)}%)`);
+
+      const label = labels[id] || id.split(':')[1];  // ✅ 用真实 label 替代 baseLabel
+      n.data('label', `${label} (${Math.round(p * 100)}%)`);
     });
+
 
     cy.edges().forEach(e => {
       const srcId = e.source().id();
@@ -211,8 +226,55 @@
       e.data('label', `${Math.round(edgeProb * 100)}%`);
     });
 
+    const topPaths = data.top_paths || [];
+    const $container = $('<div class="mt-3"><h5>Top Attack Paths:</h5><ol></ol></div>');
+    const $list = $container.find('ol');
+
+    topPaths.forEach(p => {
+      const line = `${p.path.join(" → ")} (P=${(p.prob * 100).toFixed(2)}%)`;
+      $list.append(`<li>${line}</li>`);
+    });
+
+    $('#cy').after($container);
+
   }
 
   loadBayesianGraph();
+
+  let topologyMode = false;
+
+function toggleTopologyView() {
+  if (!cy) return;
+
+  topologyMode = !topologyMode;
+
+  // 切换布局方式
+  cy.layout({
+    name: 'dagre',
+    rankDir: topologyMode ? 'LR' : 'TB',
+    nodeSep: 50,
+    edgeSep: 30,
+    rankSep: topologyMode ? 200 : 100
+  }).run();
+
+  cy.edges().forEach(e => {
+    const srcId = e.source().id();
+    const tgtId = e.target().id();
+    const label = e.data('label');
+
+    // 如果是技术传播边（technique → compromised），模拟为设备间拓扑连接 + 标注攻击方法
+    if (srcId.startsWith("technique:") && tgtId.startsWith("compromised:")) {
+      const parentDev = cy.$(`node[id = "${srcId}"]`).incomers('node[id^="compromised:"]')[0];
+      if (topologyMode && parentDev) {
+        e.style('line-style', 'dashed');
+        e.data('label', srcId.split(':')[1]);  // 技术编号
+      } else {
+        e.style('line-style', 'solid');
+        e.data('label', label);  // 恢复原值
+      }
+    }
+  });
+}
+
 </script>
 {% endblock %}
