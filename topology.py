@@ -6,6 +6,10 @@ from extensions import get_project_db
 from io import StringIO
 import ipaddress
 import json
+from data_access import (
+    get_devices, get_subnets
+)
+from utils.topology_utils import build_device_map, assign_subnets_to_interfaces
 
 
 topology_bp = Blueprint("topology_bp", __name__)
@@ -15,42 +19,13 @@ def allowed_file(filename):
 
 @topology_bp.route('/list')
 def list_topology():
-    db = get_project_db(session["project_db"])
-    subnets = list(db.subnets.find({}))
-    devices = list(db.devices.find({}))
+    subnets = get_subnets()
+    devices = get_devices()
 
     # Build lookup: subnet_id => list of devices
-    device_map = {subnet["_id"]: [] for subnet in subnets}
-
-    # Build a quick lookup of device_id => device object
-    device_lookup = {d["_id"]: d for d in devices}
+    device_map = build_device_map(subnets, devices)
 
     master_labels = {d["_id"]: d["label"] for d in devices}
-
-
-    for device in devices:
-        added_to_subnet = set()
-
-        for iface in device.get("interfaces", []):
-            if iface.get("interface_type") == "TCP/IP":
-                subnet_id = iface.get("subnet")
-                if subnet_id in device_map and subnet_id not in added_to_subnet:
-                    device_map[subnet_id].append(device)
-                    added_to_subnet.add(subnet_id)
-            else:
-                # For non-TCP/IP, infer subnet from connected device
-                connected_id = iface.get("connected_to")
-                if connected_id and connected_id in device_lookup:
-                    connected_dev = device_lookup[connected_id]
-                    for conn_iface in connected_dev.get("interfaces", []):
-                        if conn_iface.get("subnet") and conn_iface.get("interface_type") == "TCP/IP":
-                            subnet_id = conn_iface["subnet"]
-                            if subnet_id in device_map and subnet_id not in added_to_subnet:
-                                device_map[subnet_id].append(device)
-                                added_to_subnet.add(subnet_id)
-
-                                if "slave_of" not in device:
-                                    device["slave_of"] = connected_id
 
     return render_template("topology_list.html", subnets=subnets, device_map=device_map, master_labels=master_labels)
 
@@ -164,7 +139,7 @@ def delete_subnet(subnet_id):
 # Device management
 @topology_bp.route('/device/add', methods=["GET"])
 def add_device_page():
-    subnets = list(get_project_db(session["project_db"]).subnets.find({}))
+    subnets = get_subnets()
     return render_template("device_add_or_upload.html", subnets=subnets)
 
 @topology_bp.route("/add_device_manual", methods=["POST"])
@@ -185,18 +160,8 @@ def add_device_manual():
         interfaces = []
 
     # Fetch subnet docs for matching
-    subnet_docs = list(db.subnets.find({}))
-    for iface in interfaces:
-        if iface.get("interface_type") == "TCP/IP":
-            if not iface.get("subnet") and iface.get("ip_address"):
-                try:
-                    ip_obj = ipaddress.ip_address(iface["ip_address"])
-                    for subnet in subnet_docs:
-                        if "cidr" in subnet and ip_obj in ipaddress.ip_network(subnet["cidr"]):
-                            iface["subnet"] = subnet["_id"]
-                            break
-                except Exception:
-                    continue
+    subnet_docs = get_subnets()
+    assign_subnets_to_interfaces(interfaces, subnet_docs)
 
     # Insert the new device
     db.devices.insert_one({
@@ -232,7 +197,7 @@ def add_device_upload():
 
         count = 0
         devices = []
-        subnet_docs = list(db.subnets.find({}))  # <-- subnet info loaded here
+        subnet_docs = get_subnets()  # <-- subnet info loaded here
 
         with open(filepath, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
@@ -241,17 +206,7 @@ def add_device_upload():
                     interfaces = json.loads(row.get("interfaces", "[]"))
 
                     # Auto-match subnet for TCP/IP interfaces only
-                    for iface in interfaces:
-                        if iface.get("interface_type") == "TCP/IP":
-                            if not iface.get("subnet") and iface.get("ip_address"):
-                                try:
-                                    ip_obj = ipaddress.ip_address(iface["ip_address"])
-                                    for subnet in subnet_docs:
-                                        if "cidr" in subnet and ip_obj in ipaddress.ip_network(subnet["cidr"]):
-                                            iface["subnet"] = subnet["_id"]
-                                            break
-                                except Exception:
-                                    continue
+                    assign_subnets_to_interfaces(interfaces, subnet_docs)
 
                     devices.append({
                         "_id": row["_id"],
@@ -292,18 +247,8 @@ def edit_device(device_id):
         except Exception:
             interfaces = []
 
-        subnet_docs = list(db.subnets.find({}))
-        for iface in interfaces:
-            if iface.get("interface_type") == "TCP/IP":
-                if not iface.get("subnet") and iface.get("ip_address"):
-                    try:
-                        ip_obj = ipaddress.ip_address(iface["ip_address"])
-                        for subnet in subnet_docs:
-                            if "cidr" in subnet and ip_obj in ipaddress.ip_network(subnet["cidr"]):
-                                iface["subnet"] = subnet["_id"]
-                                break
-                    except Exception:
-                        continue
+        subnet_docs = get_subnets()
+        assign_subnets_to_interfaces(interfaces, subnet_docs)
 
         db.devices.update_one({"_id": device_id}, {"$set": {
             "label": label,

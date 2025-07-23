@@ -24,6 +24,10 @@ from extensions import attack_reference, get_project_db
 
 from utils.estimat_probabilities import compute_structural_probability, estimate_parent_influence
 
+from data_access import (
+    get_devices, get_subnets, get_vulnerabilities, get_techniques, get_tactics, get_technique_to_tactic_map, get_tactic_chain, get_firewall_rules, get_technique_map, get_tactic_map, get_device_map
+)
+
 analysis_bp = Blueprint('analysis_bp', __name__)
 
 _bn_cache: dict[str, DiscreteBayesianNetwork] = {}
@@ -34,47 +38,22 @@ def _project_db() -> str:
         raise KeyError('project_db missing from session')
     return db
 
-def load_subnets() -> List[Dict[str, Any]]:
-    return list(get_project_db(_project_db()).subnets.find({}))
-
-def load_devices() -> List[Dict[str, Any]]:
-    return list(get_project_db(_project_db()).devices.find({}))
-
-def load_firewall_rules() -> List[Dict[str, Any]]:
-    return list(get_project_db(_project_db()).firewall_rules.find({}))
-
-def load_vulnerabilities() -> List[Dict[str, Any]]:
-    return list(get_project_db(_project_db()).vulnerabilities.find({}))
-
-def load_techniques() -> List[Dict[str, Any]]:
-    return list(attack_reference.techniques.find({}))
-
-def load_tactics() -> List[Dict[str, Any]]:
-    return list(attack_reference.tactics.find({}))
-
-def load_technique_to_tactic() -> Dict[str, str]:
-    mappings = attack_reference.techniques_to_tactics.find({})
-    return {m['technique_id']: m['tactic_id'] for m in mappings}
-
-def load_tactic_chain() -> List[Dict[str, Any]]:
-    return list(attack_reference.tactic_chain.find({}))
-
 @analysis_bp.route('/analysis_topology_graph_page')
 def analysis_topology_graph_page():
     return render_template('analysis_topology_graph.html')
 
 @analysis_bp.route('/analysis_topology_graph')
 def analysis_topology_graph():
-    subnets = load_subnets()
-    devices = load_devices()
-    vulns = load_vulnerabilities()
-    techniques = load_techniques()
-    tactics = load_tactics()
-    tech2tactic = load_technique_to_tactic()
+    subnets = get_subnets()
+    devices = get_devices()
+    vulns = get_vulnerabilities()
+    techniques = get_techniques()
+    tactics = get_tactics()
+    tech2tactic = get_technique_to_tactic_map()
     subnet_ids = {str(s['_id']): s for s in subnets}
     device_ids = {str(d['_id']): d for d in devices}
-    technique_map = {t['technique_id']: t for t in techniques}
-    tactic_map = {t['tactic_id']: t for t in tactics}
+    technique_map = get_technique_map()
+    tactic_map = get_tactic_map()
     elements: List[Dict[str, Any]] = []
     device_subnets: dict[str, list[str]] = {}
     device_connected_to: dict[str, str] = {}
@@ -155,33 +134,52 @@ def bayesian_attack_graph():
         prob = posterior.get(child, 0.0)
         edge_prob_map[parent, child] = round(prob, 3)
     session['attack_graph'] = {'nodes': list(model.nodes), 'edges': list(model.edges)}
-    devices = load_devices()
-    techniques = load_techniques()
-    device_map = {str(d['_id']): d.get('label', str(d['_id'])) for d in devices}
-    technique_map = {t['technique_id']: t.get('technique_name', t['technique_id']) for t in techniques}
+    devices = get_devices()
+    techniques = get_techniques()
+    device_map = get_device_map()
+    technique_map = get_technique_map()
     node_info = []
     for n in model.nodes:
         label = n.split(':', 1)[1]
         if n.startswith('compromised:'):
-            label = device_map.get(label, label)
+            dev = device_map.get(label, {})
+            node_info.append({
+                'id': n,
+                'label': dev.get('label', label),
+                'device_type': dev.get('device_type', ''),
+            })
         elif n.startswith('technique:'):
-            label = technique_map.get(label, label)
-        node_info.append({'id': n, 'label': label})
-    tech2tactic = load_technique_to_tactic()
-    tactics_chain = load_tactic_chain()
+            tech = technique_map.get(label, {})
+            node_info.append({
+                'id': n,
+                'label': tech.get('technique_name', label),
+                'description': tech.get('technique_description', ''),
+            })
+        else:
+            node_info.append({'id': n, 'label': label})
+    tech2tactic = get_technique_to_tactic_map()
+    tactics_chain = get_tactic_chain()
     tactics_order = _build_tactic_order(tactics_chain)
     paths = top_k_paths_by_cpd_strength(model=_bn_cache[project], start_node='technique:T1566.001', k=5, technique_to_tactic=tech2tactic, tactic_order=tactics_order)
     print('Total static paths found:', len(paths))
     for path, prob in paths:
         print(' → '.join(path), f'| P={prob:.4f}')
+
+    # import pprint; pprint.pprint({
+    # 'nodes': node_info,
+    # 'edges': list(model.edges),
+    # 'edge_probs': {f'{src}→{tgt}': p for (src, tgt), p in edge_prob_map.items()},
+    # 'initial_paths': paths
+    # })
+    # breakpoint()
     return jsonify({'nodes': node_info, 'edges': list(model.edges), 'edge_probs': {f'{src}→{tgt}': p for (src, tgt), p in edge_prob_map.items()}, 'initial_paths': paths})
 
 def _build_bayesian_model() -> DiscreteBayesianNetwork:
-    devices = load_devices()
-    vulns = load_vulnerabilities()
-    firewall_rules = load_firewall_rules()
-    tech2tactic = load_technique_to_tactic()
-    tactics_chain = load_tactic_chain()
+    devices = get_devices()
+    vulns = get_vulnerabilities()
+    firewall_rules = get_firewall_rules()
+    tech2tactic = get_technique_to_tactic_map()
+    tactics_chain = get_tactic_chain()
     tactics_order = _build_tactic_order(tactics_chain)
     device_ids = {str(d['_id']) for d in devices}
     device_info = {str(d['_id']): d for d in devices}
@@ -345,9 +343,9 @@ def infer_probability():
             result[n] = round(float(q.values[1]), 3)
         result[node] = 1.0
         highlight = sorted((k for k, v in result.items() if v > 0.5), key=lambda x: -result[x])
-        techniques = load_techniques()
-        tactics = load_tactics()
-        devices = load_devices()
+        techniques = get_techniques()
+        tactics = get_tactics()
+        devices = get_devices()
         tech2tactic = {t['technique_id']: t.get('tactic_id') for t in techniques}
         tactic_order_index = build_tactic_order_index(tactics)
         device_map = {f"compromised:{str(d['_id'])}": d.get('label', str(d['_id'])) for d in devices}
@@ -377,7 +375,7 @@ def infer_probability():
             label_path = [id_to_label.get(n, n) for n in path]
             top_paths_pretty.append({'path': label_path, 'prob': prob})
         session['inference_result'] = result
-        devices = load_devices()
+        devices = get_devices()
         device_ids = [f"compromised:{str(d['_id'])}" for d in devices]
         N = len(device_ids)
         weighted_probs = []
@@ -463,7 +461,7 @@ def _root_probability(node: str, vulns: list[dict]) -> float:
                     return False
             prev_tactic = tac
         return True
-    tech2tactic = load_technique_to_tactic()
+    tech2tactic = get_technique_to_tactic_map()
     ics_tactics = {'TA0108', 'TA0109', 'TA0110', 'TA0111', 'TA0112', 'TA0113', 'TA0114', 'TA0115', 'TA0116', 'TA0117', 'TA0118', 'TA0119'}
     for node in model.nodes:
         if node.startswith('technique:'):
